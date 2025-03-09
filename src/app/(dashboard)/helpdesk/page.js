@@ -62,7 +62,7 @@ export default function HelpdeskDashboard() {
         {assignedUsers.length > 0 ? (
           <div className="space-y-4">
             {assignedUsers.map(assignedUser => (
-              <div key={assignedUser._id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div key={assignedUser.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <Avatar
@@ -78,7 +78,7 @@ export default function HelpdeskDashboard() {
                     </div>
                   </div>
                   <Button
-                    onClick={() => router.push(`/chat/${assignedUser._id}`)}
+                    onClick={() => router.push(`/chat/${assignedUser.id}`)}
                   >
                     Chat with User
                   </Button>

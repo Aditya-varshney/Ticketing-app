@@ -1,8 +1,11 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcrypt";
-import connectToDatabase from "@/lib/mongodb/connect";
-import User from "@/lib/mongodb/models/User";
+import { connectToDatabase } from "@/lib/mariadb/connect";
+import { User } from "@/lib/mariadb/models";
+
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
 
 export const authOptions = {
   providers: [
@@ -19,7 +22,7 @@ export const authOptions = {
         
         await connectToDatabase();
         
-        const user = await User.findOne({ email: credentials.email });
+        const user = await User.findOne({ where: { email: credentials.email } });
         
         if (!user) {
           throw new Error("No user found with this email");
@@ -32,7 +35,7 @@ export const authOptions = {
         }
         
         return {
-          id: user._id.toString(),
+          id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,

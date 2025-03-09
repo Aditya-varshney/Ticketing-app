@@ -52,7 +52,7 @@ export default function ChatListPage() {
   // If there's only one contact, redirect directly to that chat
   useEffect(() => {
     if (contacts.length === 1) {
-      router.push(`/chat/${contacts[0]._id}`);
+      router.push(`/chat/${contacts[0].id}`);
     }
   }, [contacts, router]);
 
@@ -70,9 +70,9 @@ export default function ChatListPage() {
           <div className="space-y-4">
             {contacts.map(contact => (
               <div 
-                key={contact._id} 
+                key={contact.id} 
                 className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition"
-                onClick={() => handleChatClick(contact._id)}
+                onClick={() => handleChatClick(contact.id)}
               >
                 <div className="flex items-center">
                   <Avatar 

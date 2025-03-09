@@ -82,7 +82,7 @@ export default function AdminDashboard() {
             {users.length > 0 ? (
               <div className="space-y-4">
                 {users.map(user => (
-                  <div key={user._id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <div key={user.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <Avatar
@@ -98,7 +98,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <Button
-                        onClick={() => router.push(`/chat/${user._id}`)}
+                        onClick={() => router.push(`/chat/${user.id}`)}
                         size="sm"
                       >
                         Chat
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
             {helpdesks.length > 0 ? (
               <div className="space-y-4">
                 {helpdesks.map(helpdesk => (
-                  <div key={helpdesk._id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <div key={helpdesk.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <Avatar
@@ -136,7 +136,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <Button
-                        onClick={() => router.push(`/chat/${helpdesk._id}`)}
+                        onClick={() => router.push(`/chat/${helpdesk.id}`)}
                         size="sm"
                       >
                         Chat

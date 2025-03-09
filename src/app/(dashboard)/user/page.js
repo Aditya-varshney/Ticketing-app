@@ -43,7 +43,8 @@ export default function UserDashboard() {
 
   const handleChatClick = () => {
     if (helpdesk) {
-      router.push(`/chat/${helpdesk._id}`);
+      // Change _id to id
+      router.push(`/chat/${helpdesk.id}`);
     }
   };
 

@@ -1,9 +1,13 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import connectToDatabase from "@/lib/mongodb/connect";
-import Message from "@/lib/mongodb/models/Message";
-import User from "@/lib/mongodb/models/User";
+import { connectToDatabase } from "@/lib/mariadb/connect";
+import { Message, User } from "@/lib/mariadb/models";
+import { Op } from "sequelize";
 import { NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
@@ -16,7 +20,7 @@ export async function GET(request) {
       );
     }
 
-    // Get the current user's ID and receiver ID from query params
+    // Get the receiver ID from query params
     const { searchParams } = new URL(request.url);
     const receiverId = searchParams.get("receiverId");
 
@@ -29,38 +33,56 @@ export async function GET(request) {
 
     const currentUserId = session.user.id;
 
-    // Connect to the database
+    // Connect to database
     await connectToDatabase();
 
     // Fetch messages between the two users (both directions)
-    const messages = await Message.find({
-      $or: [
-        { sender: currentUserId, receiver: receiverId },
-        { sender: receiverId, receiver: currentUserId },
-      ],
-    })
-      .sort({ createdAt: 1 }) // Sort by timestamp
-      .populate("sender", "name avatar")
-      .populate("receiver", "name avatar");
+    const messages = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { sender: currentUserId, receiver: receiverId },
+          { sender: receiverId, receiver: currentUserId }
+        ]
+      },
+      order: [['created_at', 'ASC']],
+      include: [
+        {
+          model: User,
+          as: 'senderUser',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: User,
+          as: 'receiverUser',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ]
+    });
 
     // Mark all unread messages from the other user as read
-    await Message.updateMany(
-      { sender: receiverId, receiver: currentUserId, read: false },
-      { $set: { read: true } }
+    await Message.update(
+      { read: true },
+      {
+        where: {
+          sender: receiverId,
+          receiver: currentUserId,
+          read: false
+        }
+      }
     );
 
     // Transform messages to include sender and receiver details
-    const transformedMessages = messages.map((message) => ({
-      _id: message._id.toString(),
+    const transformedMessages = messages.map(message => ({
+      _id: message.id,
       content: message.content,
-      sender: message.sender._id.toString(),
-      senderName: message.sender.name,
-      senderAvatar: message.sender.avatar,
-      receiver: message.receiver._id.toString(),
-      receiverName: message.receiver.name,
-      receiverAvatar: message.receiver.avatar,
+      sender: message.sender,
+      senderName: message.senderUser.name,
+      senderAvatar: message.senderUser.avatar,
+      receiver: message.receiver,
+      receiverName: message.receiverUser.name,
+      receiverAvatar: message.receiverUser.avatar,
       read: message.read,
-      createdAt: message.createdAt,
+      createdAt: message.created_at
     }));
 
     return NextResponse.json(transformedMessages);
@@ -84,7 +106,7 @@ export async function POST(request) {
       );
     }
 
-    // Get the message data from the request body
+    // Get message data from request body
     const data = await request.json();
     const { receiver, content } = data;
 
@@ -97,35 +119,46 @@ export async function POST(request) {
 
     const senderId = session.user.id;
 
-    // Connect to the database
+    // Connect to database
     await connectToDatabase();
 
     // Create a new message
     const message = await Message.create({
+      id: uuidv4(),
       sender: senderId,
       receiver,
       content,
-      read: false,
-      createdAt: new Date(),
+      read: false
     });
 
-    // Populate sender and receiver details
-    const populatedMessage = await Message.findById(message._id)
-      .populate("sender", "name avatar")
-      .populate("receiver", "name avatar");
+    // Retrieve the created message with associations
+    const populatedMessage = await Message.findByPk(message.id, {
+      include: [
+        {
+          model: User,
+          as: 'senderUser',
+          attributes: ['id', 'name', 'avatar']
+        },
+        {
+          model: User,
+          as: 'receiverUser',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ]
+    });
 
-    // Transform the message for the response
+    // Transform the message for response
     const transformedMessage = {
-      _id: populatedMessage._id.toString(),
+      _id: populatedMessage.id,
       content: populatedMessage.content,
-      sender: populatedMessage.sender._id.toString(),
-      senderName: populatedMessage.sender.name,
-      senderAvatar: populatedMessage.sender.avatar,
-      receiver: populatedMessage.receiver._id.toString(),
-      receiverName: populatedMessage.receiver.name,
-      receiverAvatar: populatedMessage.receiver.avatar,
+      sender: populatedMessage.sender,
+      senderName: populatedMessage.senderUser.name,
+      senderAvatar: populatedMessage.senderUser.avatar,
+      receiver: populatedMessage.receiver,
+      receiverName: populatedMessage.receiverUser.name,
+      receiverAvatar: populatedMessage.receiverUser.avatar,
       read: populatedMessage.read,
-      createdAt: populatedMessage.createdAt,
+      createdAt: populatedMessage.created_at
     };
 
     return NextResponse.json(transformedMessage, { status: 201 });
