@@ -1,43 +1,91 @@
-# Ticketing Chat Application
+# Ticketing Chat Application - MariaDB Version
 
-This repository contains two versions of the ticketing chat application:
+This branch contains the MariaDB-compatible version of the ticketing chat application. It uses Sequelize ORM with MariaDB/MySQL as the database instead of MongoDB.
 
-- **Main Branch**: MongoDB-based version
-- **MariaDB Branch**: MariaDB-based version (compatible with MySQL)
+## Features
 
-## Getting Started
+- User authentication with role-based access (admin, helpdesk, user)
+- Real-time chat using Socket.io
+- Ticket assignment system for helpdesk support
+- Responsive UI design
 
-First, run the development server:
+## Prerequisites
+
+- Node.js (v16+)
+- MariaDB/MySQL (v10.5+ / v8.0+)
+
+## Setup Instructions
+
+### 1. Clone the Repository
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/ticketing_chatapp.git
+cd ticketing_chatapp
+git checkout mariadb-version
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install Dependencies
 
-## Database Versions
+```bash
+npm install
+```
 
-### MongoDB Version (main branch)
-The MongoDB version uses document-based storage with Mongoose ODM.
+### 3. Set up MariaDB
 
-### MariaDB Version (mariadb-version branch)
-The MariaDB version uses relational database tables with Sequelize ORM.
+#### Install MariaDB (if not already installed)
 
-## Learn More
+Ubuntu/Debian:
+```bash
+sudo apt update
+sudo apt install mariadb-server
+sudo mysql_secure_installation
+```
 
-To learn more about Next.js, take a look at the following resources:
+Arch Linux:
+```bash
+sudo pacman -S mariadb
+sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+sudo systemctl start mariadb
+sudo systemctl enable mariadb
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+#### Create Database and User
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Run the setup script:
+```bash
+npm run setup-mariadb
+```
 
-## Deploy on Vercel
+Alternatively, you can set up manually:
+```bash
+sudo mariadb
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Then in MariaDB CLI:
+```sql
+CREATE DATABASE ticketing;
+CREATE USER 'ticketing_app'@'localhost' IDENTIFIED BY 'secure_password';
+GRANT ALL PRIVILEGES ON ticketing.* TO 'ticketing_app'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+### 4. Create Database Tables
+
+```bash
+npm run create-db-tables
+```
+
+### 5. Initialize with Sample Data
+
+```bash
+npm run init-mariadb
+```
+
+This creates the following sample users:
+- Admin: admin@example.com / admin123
+- Helpdesk: helpdesk@example.com / helpdesk123
+
+### 6. Configure Environment Variables
+
+Create a `.env.local` file in the project root:
