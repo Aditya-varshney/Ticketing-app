@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 import AssignmentManager from '@/components/admin/AssignmentManager';
 
 export default function AdminDashboard() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState([]);
   const [helpdesks, setHelpdesks] = useState([]);
@@ -61,12 +61,18 @@ export default function AdminDashboard() {
               Welcome back, {user?.name}!
             </p>
           </div>
-          <div>
+          <div className="flex items-center gap-4">
             <Button 
               onClick={() => setShowAssignments(!showAssignments)}
               variant={showAssignments ? "secondary" : "primary"}
             >
               {showAssignments ? "View Users List" : "Manage Assignments"}
+            </Button>
+            <Button 
+              onClick={() => logout()}
+              variant="outline"
+            >
+              Logout
             </Button>
           </div>
         </div>

@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 
 export default function ChatPage() {
   const { receiverId } = useParams();
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const [receiver, setReceiver] = useState(null);
 
@@ -91,9 +91,14 @@ export default function ChatPage() {
               </div>
             </div>
           </div>
-          <Button onClick={handleBackClick} variant="secondary" size="sm">
-            Back to Contacts
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleBackClick} variant="secondary" size="sm">
+              Back to Contacts
+            </Button>
+            <Button onClick={() => logout()} variant="outline" size="sm">
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
 

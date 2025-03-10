@@ -37,6 +37,13 @@ export default function ChatListPage() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    // If there's only one contact, redirect directly to that chat
+    if (contacts.length === 1) {
+      router.push(`/chat/${contacts[0].id}`);
+    }
+  }, [contacts, router]);
+
   const handleChatClick = (contactId) => {
     router.push(`/chat/${contactId}`);
   };
@@ -48,13 +55,6 @@ export default function ChatListPage() {
       </div>
     );
   }
-
-  // If there's only one contact, redirect directly to that chat
-  useEffect(() => {
-    if (contacts.length === 1) {
-      router.push(`/chat/${contacts[0].id}`);
-    }
-  }, [contacts, router]);
 
   return (
     <div className="container mx-auto px-4 py-8">

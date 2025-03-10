@@ -7,7 +7,8 @@ import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 
 export default function HelpdeskDashboard() {
-  const { user, loading, isAuthenticated } = useAuth();
+  // Add logout to the destructured properties
+  const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const [assignedUsers, setAssignedUsers] = useState([]);
 
@@ -50,10 +51,22 @@ export default function HelpdeskDashboard() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h1 className="text-2xl font-bold mb-4">Helpdesk Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          Welcome back, {user?.name}!
-        </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold mb-4">Helpdesk Dashboard</h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Welcome back, {user?.name}!
+            </p>
+          </div>
+          <div>
+            <Button 
+              onClick={() => logout()}
+              variant="outline"
+            >
+              Logout
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
