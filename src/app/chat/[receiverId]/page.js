@@ -42,7 +42,7 @@ export default function ChatPage() {
   }, [receiverId, isAuthenticated]);
 
   const handleBackClick = () => {
-    router.push('/chat');
+    router.push('/chat?showContacts=true');
   };
 
   if (loading) {
