@@ -1,9 +1,9 @@
-import { Server } from 'socket.io';
+const { Server } = require('socket.io');
 
 // Map to store active connections
 const users = new Map();
 
-export default function initSocket(server) {
+function initSocket(server) {
   const io = new Server(server, {
     cors: {
       origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
@@ -65,3 +65,5 @@ export default function initSocket(server) {
 
   return io;
 }
+
+module.exports = initSocket;

@@ -8,10 +8,10 @@ import { v4 as uuidv4 } from "uuid";
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
-// Get all assignments
+// Get all assignments or filtered by user/helpdesk id
 export async function GET(request) {
   try {
-    // Check authentication and admin role
+    // Check authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -20,37 +20,56 @@ export async function GET(request) {
       );
     }
 
-    // Verify admin role
+    // Connect to database
     await connectToDatabase();
-    const admin = await User.findByPk(session.user.id);
-    if (admin.role !== 'admin') {
+    
+    // Get user info to check permissions
+    const requestingUser = await User.findByPk(session.user.id);
+    if (!requestingUser) {
       return NextResponse.json(
-        { message: "Not authorized" },
-        { status: 403 }
+        { message: "User not found" },
+        { status: 404 }
       );
     }
 
-    // Get all assignments with populated user and helpdesk information
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const helpdeskId = searchParams.get('helpdeskId');
+    
+    // Define where clause based on parameters and user role
+    const whereClause = {};
+    
+    // If filtering by user ID
+    if (userId) {
+      whereClause.user_id = userId;
+    }
+    
+    // If filtering by helpdesk ID
+    if (helpdeskId) {
+      whereClause.helpdesk_id = helpdeskId;
+    }
+    
+    // Regular users can only see their own assignments
+    if (requestingUser.role === 'user') {
+      whereClause.user_id = requestingUser.id;
+    }
+    
+    // Helpdesk users can only see assignments where they are the helpdesk
+    else if (requestingUser.role === 'helpdesk') {
+      whereClause.helpdesk_id = requestingUser.id;
+    }
+    
+    // Get assignments based on filters
     const assignments = await Assignment.findAll({
+      where: whereClause,
       include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['id', 'name', 'email', 'avatar']
-        },
-        {
-          model: User,
-          as: 'helpdesk',
-          attributes: ['id', 'name', 'email', 'avatar']
-        },
-        {
-          model: User,
-          as: 'admin',
-          attributes: ['id', 'name']
-        }
+        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] },
+        { model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'admin', attributes: ['id', 'name', 'email'] }
       ]
     });
-
+    
     return NextResponse.json(assignments);
   } catch (error) {
     console.error("Error fetching assignments:", error);
@@ -61,10 +80,10 @@ export async function GET(request) {
   }
 }
 
-// Create a new assignment
+// Create or update an assignment
 export async function POST(request) {
   try {
-    // Check authentication and admin role
+    // Check authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -78,79 +97,83 @@ export async function POST(request) {
     
     // Verify admin role
     const admin = await User.findByPk(session.user.id);
-    if (admin.role !== 'admin') {
+    if (!admin || admin.role !== 'admin') {
       return NextResponse.json(
-        { message: "Not authorized" },
+        { message: "Only admins can create/update assignments" },
         { status: 403 }
       );
     }
 
-    // Get assignment data
-    const { userId, helpdeskId } = await request.json();
-    
-    console.log("Creating assignment with userId:", userId, "helpdeskId:", helpdeskId);
+    const data = await request.json();
+    const { userId, helpdeskId } = data;
     
     if (!userId || !helpdeskId) {
       return NextResponse.json(
-        { message: "User ID and Helpdesk ID are required" },
+        { message: "User ID and helpdesk ID are required" },
         { status: 400 }
       );
     }
-
-    // Check if user and helpdesk exist
-    const user = await User.findByPk(userId);
-    console.log("Found user:", user ? user.id : "Not found");
     
-    const helpdesk = await User.findByPk(helpdeskId);
-    console.log("Found helpdesk:", helpdesk ? helpdesk.id : "Not found");
-
+    // Check if user exists and is a regular user
+    const user = await User.findByPk(userId);
     if (!user) {
       return NextResponse.json(
-        { message: "User not found", userId: userId },
+        { message: "User not found" },
         { status: 404 }
       );
     }
-
-    if (!helpdesk || helpdesk.role !== 'helpdesk') {
+    
+    if (user.role !== 'user') {
       return NextResponse.json(
-        { message: "Invalid helpdesk user" },
+        { message: "Can only assign regular users to helpdesk" },
         { status: 400 }
       );
     }
-
-    // Check if assignment already exists for this user
-    const existingAssignment = await Assignment.findOne({
+    
+    // Check if helpdesk exists and is a helpdesk user
+    const helpdesk = await User.findByPk(helpdeskId);
+    if (!helpdesk) {
+      return NextResponse.json(
+        { message: "Helpdesk user not found" },
+        { status: 404 }
+      );
+    }
+    
+    if (helpdesk.role !== 'helpdesk') {
+      return NextResponse.json(
+        { message: "Can only assign to helpdesk users" },
+        { status: 400 }
+      );
+    }
+    
+    // Check if assignment already exists
+    let assignment = await Assignment.findOne({
       where: { user_id: userId }
     });
     
-    if (existingAssignment) {
+    if (assignment) {
       // Update existing assignment
-      existingAssignment.helpdesk_id = helpdeskId;
-      existingAssignment.assigned_by = session.user.id;
-      await existingAssignment.save();
-
-      return NextResponse.json(
-        { message: "Assignment updated successfully", assignment: existingAssignment },
-        { status: 200 }
-      );
+      assignment.helpdesk_id = helpdeskId;
+      assignment.assigned_by = admin.id;
+      await assignment.save();
+    } else {
+      // Create new assignment
+      assignment = await Assignment.create({
+        user_id: userId,
+        helpdesk_id: helpdeskId,
+        assigned_by: admin.id
+      });
     }
-
-    // Create new assignment
-    const newAssignment = await Assignment.create({
-      id: uuidv4(),
-      user_id: userId,
-      helpdesk_id: helpdeskId,
-      assigned_by: session.user.id
-    });
-
+    
+    // Return successful response with created/updated assignment
     return NextResponse.json(
-      { message: "Assignment created successfully", assignment: newAssignment },
+      { message: "Assignment created/updated successfully", assignment },
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error creating assignment:", error);
+    console.error("Error creating/updating assignment:", error);
     return NextResponse.json(
-      { message: "Error creating assignment", error: error.message },
+      { message: "Error creating/updating assignment", error: error.message },
       { status: 500 }
     );
   }
@@ -159,7 +182,7 @@ export async function POST(request) {
 // Delete an assignment
 export async function DELETE(request) {
   try {
-    // Check authentication and admin role
+    // Check authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -173,16 +196,16 @@ export async function DELETE(request) {
     
     // Verify admin role
     const admin = await User.findByPk(session.user.id);
-    if (admin.role !== 'admin') {
+    if (!admin || admin.role !== 'admin') {
       return NextResponse.json(
-        { message: "Not authorized" },
+        { message: "Only admins can delete assignments" },
         { status: 403 }
       );
     }
-
-    // Get user ID from query parameters
+    
+    // Get query parameters
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    const userId = searchParams.get('userId');
     
     if (!userId) {
       return NextResponse.json(
@@ -190,23 +213,23 @@ export async function DELETE(request) {
         { status: 400 }
       );
     }
-
-    // Delete the assignment
-    const deleteCount = await Assignment.destroy({
+    
+    // Find the assignment
+    const assignment = await Assignment.findOne({
       where: { user_id: userId }
     });
     
-    if (deleteCount === 0) {
+    if (!assignment) {
       return NextResponse.json(
         { message: "Assignment not found" },
         { status: 404 }
       );
     }
-
-    return NextResponse.json(
-      { message: "Assignment deleted successfully" },
-      { status: 200 }
-    );
+    
+    // Delete the assignment
+    await assignment.destroy();
+    
+    return NextResponse.json({ message: "Assignment deleted successfully" });
   } catch (error) {
     console.error("Error deleting assignment:", error);
     return NextResponse.json(

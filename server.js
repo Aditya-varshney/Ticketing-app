@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const next = require('next');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const initSocket = require('./src/lib/socket/socket').default;
+const initSocket = require('./src/lib/socket/socket');
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });

@@ -1,0 +1,274 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import Button from '@/components/ui/Button';
+
+export default function FillTicketFormPage({ params }) {
+  const templateId = params.id;
+  const { user, loading, isAuthenticated } = useAuth();
+  const router = useRouter();
+  
+  const [template, setTemplate] = useState(null);
+  const [loadingTemplate, setLoadingTemplate] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [notification, setNotification] = useState(null);
+  
+  const [formData, setFormData] = useState({});
+
+  useEffect(() => {
+    // Check if user is authenticated and has the correct role
+    if (!loading && !isAuthenticated) {
+      router.replace('/login');
+    } else if (!loading && user?.role !== 'user') {
+      router.replace(`/${user?.role}`);
+    }
+  }, [loading, isAuthenticated, user, router]);
+
+  useEffect(() => {
+    // Fetch the form template
+    const fetchTemplate = async () => {
+      if (!isAuthenticated || !templateId) return;
+      
+      try {
+        setLoadingTemplate(true);
+        const response = await fetch(`/api/forms/templates?id=${templateId}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch form template');
+        }
+        
+        const data = await response.json();
+        
+        // Ensure fields is always an array
+        if (!data.fields || !Array.isArray(data.fields)) {
+          // If fields is a string (JSON), try to parse it
+          if (typeof data.fields === 'string') {
+            try {
+              data.fields = JSON.parse(data.fields);
+            } catch (e) {
+              console.error('Error parsing fields JSON:', e);
+              data.fields = [];
+            }
+          } else {
+            data.fields = [];
+          }
+        }
+        
+        setTemplate(data);
+      } catch (error) {
+        console.error('Error fetching form template:', error);
+        setNotification({
+          type: 'error',
+          message: 'Could not load the form. Please try again later.'
+        });
+        
+        // Try to get from localStorage as fallback
+        try {
+          const savedTypes = localStorage.getItem('ticketTypes');
+          if (savedTypes) {
+            const parsedTypes = JSON.parse(savedTypes);
+            const localTemplate = parsedTypes.find(t => t.id === templateId);
+            if (localTemplate) {
+              // Ensure local template fields is an array too
+              if (!localTemplate.fields || !Array.isArray(localTemplate.fields)) {
+                if (typeof localTemplate.fields === 'string') {
+                  try {
+                    localTemplate.fields = JSON.parse(localTemplate.fields);
+                  } catch (e) {
+                    localTemplate.fields = [];
+                  }
+                } else {
+                  localTemplate.fields = [];
+                }
+              }
+              setTemplate(localTemplate);
+            }
+          }
+        } catch (e) {
+          console.error('Error loading from localStorage:', e);
+        }
+      } finally {
+        setLoadingTemplate(false);
+      }
+    };
+    
+    fetchTemplate();
+  }, [isAuthenticated, templateId]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      // Validate required fields
+      const missingFields = template.fields
+        .filter(field => field.required && !formData[field.id])
+        .map(field => field.name);
+      
+      if (missingFields.length > 0) {
+        setNotification({
+          type: 'error',
+          message: `Please fill in required fields: ${missingFields.join(', ')}`
+        });
+        return;
+      }
+      
+      setSubmitting(true);
+      
+      const response = await fetch('/api/forms/submissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          formTemplateId: templateId,
+          formData
+        }),
+      });
+      
+      // Handle response errors
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Error ${response.status}: Failed to submit ticket`);
+      }
+      
+      const result = await response.json();
+      
+      setNotification({
+        type: 'success',
+        message: 'Your ticket has been submitted successfully!'
+      });
+      
+      // Reset form
+      setFormData({});
+      
+      // Redirect after short delay
+      setTimeout(() => {
+        router.push('/user/tickets');
+      }, 2000);
+    } catch (error) {
+      console.error('Error submitting ticket:', error);
+      setNotification({
+        type: 'error',
+        message: error.message || 'Failed to submit ticket'
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading || loadingTemplate) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!template) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h1 className="text-2xl font-bold mb-4">Form Not Found</h1>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">
+            The requested form could not be found.
+          </p>
+          <Button onClick={() => router.push('/user/raise-ticket')}>
+            Back to Form Selection
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">{template.name}</h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Please fill out all required fields
+            </p>
+          </div>
+          <div>
+            <Button 
+              onClick={() => router.push('/user/raise-ticket')}
+              variant="outline"
+            >
+              Back to Form Selection
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        {notification && (
+          <div className={`mb-6 p-4 rounded-md ${
+            notification.type === 'success' 
+              ? 'bg-green-50 border border-green-200 text-green-800' 
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            {notification.message}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {Array.isArray(template.fields) && template.fields.map(field => (
+            <div key={field.id}>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {field.name} {field.required && '*'}
+              </label>
+              
+              {field.type === 'textarea' ? (
+                <textarea
+                  name={field.id}
+                  value={formData[field.id] || ''}
+                  onChange={handleChange}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required={field.required}
+                />
+              ) : (
+                <input
+                  type={field.type}
+                  name={field.id}
+                  value={formData[field.id] || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required={field.required}
+                />
+              )}
+            </div>
+          ))}
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="mr-4"
+              onClick={() => router.push('/user/raise-ticket')}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting ? 'Submitting...' : 'Submit Ticket'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

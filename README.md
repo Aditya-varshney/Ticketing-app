@@ -1,13 +1,45 @@
-# Ticketing Chat Application - MariaDB Version
+# Support Ticketing System
 
-This branch contains the MariaDB-compatible version of the ticketing chat application. It uses Sequelize ORM with MariaDB/MySQL as the database instead of MongoDB.
+A comprehensive ticketing system for managing support requests with role-based access control, custom ticket types, and real-time messaging.
 
 ## Features
 
-- User authentication with role-based access (admin, helpdesk, user)
-- Real-time chat using Socket.io
-- Ticket assignment system for helpdesk support
-- Responsive UI design
+### Core Functionality
+- **Role-Based Access Control**: Admin, Helpdesk, and User roles with appropriate permissions
+- **Ticket Management**: Create, view, update, and close support tickets
+- **User Authentication**: Secure login and registration system
+- **Dashboard**: Role-specific dashboards with relevant information
+
+### Advanced Features
+
+#### Custom Ticket Types & Dynamic Forms
+- **Form Templates**: Create custom ticket types with dynamic fields
+- **Field Types**: Support for various field types including text, number, email, date, and textarea
+- **Required Fields**: Mark specific fields as required for ticket submission
+- **Form Preview**: Preview form templates before creating tickets
+
+#### Priority & Status Management
+- **Priority Levels**: Set ticket priorities (Low, Medium, High, Urgent)
+- **Visual Indicators**: Color-coded badges for different priorities and statuses
+- **Status Tracking**: Track tickets through their lifecycle (Open, In Progress, Resolved, Closed)
+
+#### User Experience Enhancements
+- **Dark Mode Support**: Toggle between light and dark themes
+- **Responsive Design**: Mobile-friendly interface for access on any device
+- **Real-time Updates**: Instant notifications for ticket updates
+- **User Profiles**: Detailed user information and ticket history
+
+#### Analytics & Reporting
+- **Dashboard Statistics**: Visual representation of ticket metrics
+- **Chart Visualizations**: Distribution of tickets by priority, status, and category
+- **Performance Metrics**: Track response times and resolution rates
+- **Helpdesk Performance**: Monitor workload and efficiency of helpdesk staff
+
+#### Communication Tools
+- **Ticket Comments**: Add comments and updates to existing tickets
+- **User Messaging**: Direct messaging between users and helpdesk staff
+- **Notifications**: Email and in-app notifications for ticket updates
+- **Quick Replies**: Predefined responses for common queries
 
 ## Prerequisites
 
@@ -19,15 +51,16 @@ This branch contains the MariaDB-compatible version of the ticketing chat applic
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ticketing_chatapp.git
-cd ticketing_chatapp
-git checkout mariadb-version
+git clone https://github.com/yourusername/ticketing_app.git
+cd ticketing_app
 ```
 
 ### 2. Install Dependencies
 
 ```bash
 npm install
+# or
+yarn install
 ```
 
 ### 3. Set up MariaDB
@@ -90,7 +123,7 @@ This creates the following sample users:
 
 Create a `.env.local` file in the project root:
 
-```sql
+```
 # MariaDB Connection
 MARIADB_HOST=localhost
 MARIADB_USER=ticketing_app
@@ -115,6 +148,35 @@ npm run dev
 
 Visit http://localhost:3000 in your browser.
 
+## Usage
+
+### Admin
+- Manage users and assign roles
+- Create and manage ticket types and form templates
+- View all tickets and statistics
+- Generate reports
+- Monitor helpdesk staff performance
+
+### Helpdesk Staff
+- View and respond to assigned tickets
+- Update ticket status and priority
+- Communicate with users
+- Access ticket history
+- View performance metrics
+
+### Users
+- Create new support tickets using custom forms
+- View status of their tickets
+- Communicate with helpdesk staff
+- Update or close their tickets
+
+## Technology Stack
+
+- **Frontend**: Next.js, React, Tailwind CSS
+- **Backend**: Node.js, Next.js API Routes
+- **Database**: MariaDB with Sequelize ORM
+- **Authentication**: NextAuth.js
+- **Styling**: Tailwind CSS with dark mode support
 
 ## Useful MariaDB Commands
 Connect to MariaDB
@@ -139,6 +201,8 @@ SHOW TABLES;
 DESCRIBE users;
 DESCRIBE messages;
 DESCRIBE assignments;
+DESCRIBE form_templates;
+DESCRIBE form_submissions;
 
 -- View all users
 SELECT id, name, email, role FROM users;
@@ -166,6 +230,16 @@ JOIN users sender ON m.sender = sender.id
 JOIN users receiver ON m.receiver = receiver.id
 ORDER BY m.created_at DESC
 LIMIT 10;
+
+-- View form templates
+SELECT id, name, fields, created_at FROM form_templates;
+
+-- View ticket submissions
+SELECT 
+  fs.id, ft.name as form_name, fs.status, fs.priority, fs.form_data, fs.created_at
+FROM form_submissions fs
+JOIN form_templates ft ON fs.form_template_id = ft.id
+ORDER BY fs.created_at DESC;
 ```
 
 ## Database GUI Tools
@@ -196,7 +270,7 @@ If you encounter issues creating tables:
 sudo tail -f /var/log/mysql/error.log
 
 # Try dropping and recreating problematic tables
-sudo mariadb -e "USE ticketing; DROP TABLE IF EXISTS messages; DROP TABLE IF EXISTS assignments;"
+sudo mariadb -e "USE ticketing; DROP TABLE IF EXISTS form_submissions; DROP TABLE IF EXISTS form_templates; DROP TABLE IF EXISTS messages; DROP TABLE IF EXISTS assignments;"
 npm run create-db-tables
 ```
 
@@ -218,3 +292,4 @@ npm run dev
 - npm run test-mariadb: Test MariaDB connection
 - npm run create-db-tables: Create database tables
 - npm run init-mariadb: Initialize sample data
+- npm run view-forms: View form templates and submissions
