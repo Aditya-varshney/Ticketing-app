@@ -71,7 +71,7 @@ Ubuntu/Debian:
 ```bash
 sudo apt update
 sudo apt install mariadb-server
-sudo mysql_secure_installation
+sudo mariadb-secure-installation
 ```
 
 Arch Linux:
@@ -82,14 +82,19 @@ sudo systemctl start mariadb
 sudo systemctl enable mariadb
 ```
 
-#### Create Database and User
+#### Database Setup
+
+Our application includes a comprehensive database setup script that handles:
+- Creating the database and application user
+- Setting up all required tables 
+- Creating default user accounts for testing
 
 Run the setup script:
 ```bash
-npm run setup-mariadb
+node scripts/setup-db.js
 ```
 
-Alternatively, you can set up manually:
+If you prefer manual setup, you can use these commands:
 ```bash
 sudo mariadb
 ```
@@ -103,25 +108,9 @@ FLUSH PRIVILEGES;
 EXIT;
 ```
 
-### 4. Create Database Tables
+### 4. Configure Environment Variables
 
-```bash
-npm run create-db-tables
-```
-
-### 5. Initialize with Sample Data
-
-```bash
-npm run init-mariadb
-```
-
-This creates the following sample users:
-- Admin: admin@example.com / admin123
-- Helpdesk: helpdesk@example.com / helpdesk123
-
-### 6. Configure Environment Variables
-
-Create a `.env.local` file in the project root:
+The setup script will create a `.env.local` file from the `.env.example` template if it doesn't exist. You can also create it manually:
 
 ```
 # MariaDB Connection
@@ -141,7 +130,7 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### 7. Run the Application
+### 5. Run the Application
 ```bash
 npm run dev
 ```
@@ -259,8 +248,8 @@ sudo systemctl status mariadb
 # Restart MariaDB if needed
 sudo systemctl restart mariadb
 
-# Test the connection
-npm run test-mariadb
+# Test the database connection
+node scripts/test-db.js
 ```
 
 Table Creation Issues
@@ -269,27 +258,30 @@ If you encounter issues creating tables:
 # View MariaDB error log
 sudo tail -f /var/log/mysql/error.log
 
-# Try dropping and recreating problematic tables
-sudo mariadb -e "USE ticketing; DROP TABLE IF EXISTS form_submissions; DROP TABLE IF EXISTS form_templates; DROP TABLE IF EXISTS messages; DROP TABLE IF EXISTS assignments;"
-npm run create-db-tables
+# Clean and recreate the database tables
+node scripts/clean-db.js
+node scripts/setup-db.js
 ```
 
-Application Startup Issues
-If the application fails to start:
+## Database Management Scripts
+
+The application includes several helpful scripts to manage your database:
+
 ```bash
-# Clear Next.js cache
-rm -rf .next
+# Set up the database, create tables and default users
+npm run setup-db
 
-# Rebuild the application
-npm run build
-npm run dev
+# Clean all data from the database (drops all tables)
+npm run clean-db
+
+# Test the database connection
+npm run test-db
+
+# Additional test options
+npm run test-db:all      # Run all checks
+npm run test-db:tables   # View all tables
+npm run test-db:users    # View user information
+npm run test-db:forms    # View form templates and submissions
 ```
 
-## Development Commands
-- npm run dev: Start development server
-- npm run build: Build the application
-- npm start: Run production server
-- npm run test-mariadb: Test MariaDB connection
-- npm run create-db-tables: Create database tables
-- npm run init-mariadb: Initialize sample data
-- npm run view-forms: View form templates and submissions
+For more options, run `node scripts/test-db.js --help`

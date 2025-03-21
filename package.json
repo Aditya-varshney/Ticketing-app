@@ -3,18 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node server.js",
+    "dev": "next dev",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "next start",
     "lint": "next lint",
-    "init-mariadb": "node scripts/init-mariadb.js",
-    "test-mariadb": "node scripts/test-mariadb-connection.js",
-    "setup-mariadb": "node scripts/setup-mariadb.js",
-    "create-db-tables": "node scripts/create-db-tables.js",
-    "create-form-tables": "node scripts/create-form-tables.js",
-    "create-simple-form-tables": "node scripts/create-simple-form-tables.js",
-    "check-db-tables": "node scripts/check-db-tables.js",
-    "fix-submissions-table": "node scripts/fix-submissions-table.js"
+    "setup-db": "node scripts/setup-db.js",
+    "clean-db": "node scripts/clean-db.js",
+    "test-db": "node scripts/test-db.js",
+    "test-db:all": "node scripts/test-db.js --all",
+    "test-db:users": "node scripts/test-db.js --users",
+    "test-db:forms": "node scripts/test-db.js --forms",
+    "test-db:tables": "node scripts/test-db.js --tables"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
