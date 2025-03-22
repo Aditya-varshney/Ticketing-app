@@ -354,18 +354,18 @@ export default function UserDashboard() {
                       {messages.map(message => (
                         <div 
                           key={message.id} 
-                          className={`flex ${message.sender === user.id ? 'justify-end' : 'justify-start'}`}
+                          className={`flex ${message.sender === (user?.id || '') ? 'justify-end' : 'justify-start'}`}
                         >
                           <div 
                             className={`max-w-[70%] rounded-lg p-3 ${
-                              message.sender === user.id 
+                              message.sender === (user?.id || '') 
                                 ? 'bg-blue-500 text-white' 
                                 : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
                             }`}
                           >
                             <div className="text-sm">{message.content}</div>
                             <div className={`text-xs mt-1 ${
-                              message.sender === user.id 
+                              message.sender === (user?.id || '') 
                                 ? 'text-blue-100' 
                                 : 'text-gray-500 dark:text-gray-400'
                             }`}>

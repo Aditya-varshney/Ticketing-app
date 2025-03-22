@@ -104,27 +104,31 @@ export default function HelpdeskDashboard() {
   // Fetch tickets submitted by assigned users
   useEffect(() => {
     const fetchAssignedTickets = async () => {
-      if (!isAuthenticated || !user?.id || assignedUsers.length === 0) {
-        setLoadingTickets(false);
-        return;
-      }
+      if (!isAuthenticated || !user?.id) return;
       
       try {
         setLoadingTickets(true);
-        const response = await fetch(`/api/helpdesk/tickets`);
+        // Use the /api/helpdesk/tickets endpoint
+        const response = await fetch('/api/helpdesk/tickets');
+        
         if (response.ok) {
           const tickets = await response.json();
+          console.log("Tickets fetched for helpdesk:", tickets.length);
           setAssignedTickets(tickets);
+        } else {
+          console.error("Error response:", await response.text());
         }
       } catch (error) {
-        console.error('Error fetching assigned tickets:', error);
+        console.error('Error fetching tickets:', error);
       } finally {
         setLoadingTickets(false);
       }
     };
 
-    fetchAssignedTickets();
-  }, [isAuthenticated, user, assignedUsers]);
+    if (isAuthenticated && user) {
+      fetchAssignedTickets();
+    }
+  }, [isAuthenticated, user]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);

@@ -1,13 +1,12 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
-import { connectToDatabase } from "@/lib/mariadb/connect";
-import { Assignment, FormSubmission, FormTemplate, User } from "@/lib/mariadb/models";
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { connectToDatabase } from '@/lib/mariadb/connect';
+import { User, FormSubmission, FormTemplate, Assignment } from '@/lib/mariadb/models';
+import { Op } from 'sequelize';
 
-// Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
-// Get tickets assigned to the helpdesk user
 export async function GET(request) {
   try {
     // Check authentication
@@ -22,39 +21,52 @@ export async function GET(request) {
     // Connect to database
     await connectToDatabase();
     
-    // Check if the user is a helpdesk
-    const helpdeskUser = await User.findByPk(session.user.id);
-    if (!helpdeskUser || helpdeskUser.role !== 'helpdesk') {
+    const user = await User.findByPk(session.user.id);
+    if (!user) {
       return NextResponse.json(
-        { message: "Only helpdesk users can access this endpoint" },
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+    
+    // Only helpdesk or admin can access this endpoint
+    if (user.role !== 'helpdesk' && user.role !== 'admin') {
+      return NextResponse.json(
+        { message: "Unauthorized access" },
         { status: 403 }
       );
     }
     
-    // Get assignments for this helpdesk
-    const assignments = await Assignment.findAll({
-      where: { helpdesk_id: session.user.id },
-      attributes: ['user_id']
-    });
-    
-    const userIds = assignments.map(a => a.user_id);
-    
-    if (userIds.length === 0) {
-      // No users assigned to this helpdesk
-      return NextResponse.json([]);
+    // For helpdesk users, get assigned users first
+    let userIds = [];
+    if (user.role === 'helpdesk') {
+      const assignments = await Assignment.findAll({
+        where: { helpdesk_id: user.id }
+      });
+      
+      userIds = assignments.map(a => a.user_id);
+      
+      if (userIds.length === 0) {
+        // No assigned users
+        return NextResponse.json([]);
+      }
     }
     
-    // Get submissions from assigned users
-    const submissions = await FormSubmission.findAll({
-      where: { submitted_by: userIds },
+    // Get tickets - for helpdesk only from assigned users, for admin all tickets
+    const whereClause = user.role === 'helpdesk' 
+      ? { submitted_by: { [Op.in]: userIds } }
+      : {};
+    
+    const tickets = await FormSubmission.findAll({
+      where: whereClause,
       include: [
         { model: FormTemplate, as: 'template' },
-        { model: User, as: 'submitter', attributes: ['id', 'name', 'email'] }
+        { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'avatar'] }
       ],
       order: [['created_at', 'DESC']]
     });
     
-    return NextResponse.json(submissions);
+    return NextResponse.json(tickets);
   } catch (error) {
     console.error("Error fetching helpdesk tickets:", error);
     return NextResponse.json(

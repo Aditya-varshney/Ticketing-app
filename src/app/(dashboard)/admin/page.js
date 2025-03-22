@@ -354,10 +354,18 @@ export default function AdminDashboard() {
       try {
         setLoadingTickets(true);
         
+        // Add debugging console log
+        console.log("Fetching tickets for admin dashboard...");
+        
         // Fetch all tickets
         const ticketsResponse = await fetch('/api/forms/submissions');
-        if (!ticketsResponse.ok) throw new Error('Failed to fetch tickets');
+        if (!ticketsResponse.ok) {
+          console.error("Error response:", await ticketsResponse.text());
+          throw new Error('Failed to fetch tickets');
+        }
+        
         const tickets = await ticketsResponse.json();
+        console.log("Fetched tickets for admin:", tickets.length);
         
         // Get recent tickets (last 5)
         const recent = [...tickets].sort((a, b) => 

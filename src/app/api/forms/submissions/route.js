@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
-import { connectToDatabase } from "@/lib/mariadb/connect";
-import { FormSubmission, FormTemplate, User } from "@/lib/mariadb/models";
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+// Fix import paths to match your project structure
+import { connectToDatabase } from '@/lib/mariadb/connect';
+import { User, FormSubmission, FormTemplate, Assignment } from '@/lib/mariadb/models';
+import { Op } from 'sequelize';
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -10,9 +12,12 @@ export const dynamic = 'force-dynamic';
 // Get form submissions (admins see all, users see only theirs)
 export async function GET(request) {
   try {
+    console.log("GET /api/forms/submissions - Starting request");
+    
     // Check authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
+      console.log("GET /api/forms/submissions - Not authenticated");
       return NextResponse.json(
         { message: "Not authenticated" },
         { status: 401 }
@@ -21,6 +26,7 @@ export async function GET(request) {
 
     // Connect to database
     await connectToDatabase();
+    console.log("GET /api/forms/submissions - Connected to database");
     
     const user = await User.findByPk(session.user.id);
     if (!user) {
@@ -63,6 +69,7 @@ export async function GET(request) {
     
     // For regular users, return only their submissions
     if (user.role === 'user') {
+      console.log(`GET /api/forms/submissions - User role: ${user.role}, fetching user's submissions`);
       const submissions = await FormSubmission.findAll({
         where: { submitted_by: user.id },
         include: [
@@ -70,10 +77,12 @@ export async function GET(request) {
         ],
         order: [['created_at', 'DESC']]
       });
+      console.log(`GET /api/forms/submissions - Found ${submissions.length} submissions for user`);
       return NextResponse.json(submissions);
     }
     
     // For admins and helpdesk, return all submissions
+    console.log(`GET /api/forms/submissions - User role: ${user.role}, fetching all submissions`);
     const submissions = await FormSubmission.findAll({
       include: [
         { model: FormTemplate, as: 'template' },
@@ -82,11 +91,12 @@ export async function GET(request) {
       order: [['created_at', 'DESC']]
     });
     
+    console.log(`GET /api/forms/submissions - Found ${submissions.length} total submissions`);
     return NextResponse.json(submissions);
   } catch (error) {
     console.error("Error fetching form submissions:", error);
     return NextResponse.json(
-      { message: "Error fetching submissions", error: error.message },
+      { message: "Error fetching submissions", error: error.message, stack: error.stack },
       { status: 500 }
     );
   }
