@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { connectToDatabase } from "@/lib/mariadb/connect";
-import { User, Assignment } from "@/lib/mariadb/models";
+import { User, TicketAssignment, FormSubmission } from "@/lib/mariadb/models";
 import { Op } from "sequelize";
 import { NextResponse } from "next/server";
 
@@ -55,31 +55,69 @@ export async function GET(request) {
         break;
         
       case 'helpdesk':
-        // Helpdesk users can see all users assigned to them
-        const assignments = await Assignment.findAll({
+        // Helpdesk users can see all users who have tickets assigned to them
+        const helpdeskAssignments = await TicketAssignment.findAll({
           where: { helpdesk_id: session.user.id },
-          include: [{
-            model: User,
-            as: 'user',
-            attributes: ['id', 'name', 'email', 'role', 'avatar']
-          }]
+          include: [
+            {
+              model: FormSubmission,
+              as: 'ticket',
+              include: [
+                {
+                  model: User,
+                  as: 'submitter',
+                  attributes: ['id', 'name', 'email', 'role', 'avatar']
+                }
+              ]
+            }
+          ]
         });
         
-        contacts = assignments.map(assignment => assignment.user);
+        // Extract unique submitters
+        const uniqueSubmitters = new Map();
+        helpdeskAssignments.forEach(assignment => {
+          if (assignment.ticket && assignment.ticket.submitter) {
+            uniqueSubmitters.set(
+              assignment.ticket.submitter.id, 
+              assignment.ticket.submitter
+            );
+          }
+        });
+        
+        contacts = Array.from(uniqueSubmitters.values());
         break;
         
       case 'user':
-        // Regular users can only see their assigned helpdesk
-        const assignment = await Assignment.findOne({
-          where: { user_id: session.user.id },
-          include: [{
-            model: User,
-            as: 'helpdesk',
-            attributes: ['id', 'name', 'email', 'role', 'avatar']
-          }]
+        // Regular users can see helpdesks assigned to their tickets
+        const userSubmissions = await FormSubmission.findAll({
+          where: { submitted_by: session.user.id },
+          include: [
+            {
+              model: TicketAssignment,
+              as: 'assignment',
+              include: [
+                {
+                  model: User,
+                  as: 'helpdesk',
+                  attributes: ['id', 'name', 'email', 'role', 'avatar']
+                }
+              ]
+            }
+          ]
         });
         
-        contacts = assignment ? [assignment.helpdesk] : [];
+        // Extract unique helpdesks
+        const uniqueHelpdesks = new Map();
+        userSubmissions.forEach(submission => {
+          if (submission.assignment && submission.assignment.helpdesk) {
+            uniqueHelpdesks.set(
+              submission.assignment.helpdesk.id,
+              submission.assignment.helpdesk
+            );
+          }
+        });
+        
+        contacts = Array.from(uniqueHelpdesks.values());
         break;
         
       default:

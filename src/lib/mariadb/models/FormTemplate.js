@@ -54,9 +54,6 @@ const FormTemplate = sequelize.define('FormTemplate', {
   }
 });
 
-// Simplified relationship - no circular dependencies
-FormTemplate.associate = (models) => {
-  FormTemplate.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
-};
+// Associations are defined in models/index.js
 
 export default FormTemplate;

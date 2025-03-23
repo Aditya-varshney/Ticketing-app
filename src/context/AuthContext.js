@@ -23,15 +23,21 @@ export function AuthProvider({ children }) {
 
   const login = async (credentials) => {
     try {
+      console.log("AuthContext: Login attempt", { email: credentials.email });
+      
       const result = await signIn('credentials', {
         ...credentials,
         redirect: false,
       });
       
+      console.log("AuthContext: Login result", result);
+      
       if (result.error) {
+        console.error("AuthContext: Login failed", result.error);
         throw new Error(result.error);
       }
       
+      console.log("AuthContext: Login successful");
       return true;
     } catch (error) {
       console.error('Login error:', error);

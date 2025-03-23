@@ -16,31 +16,44 @@ export const authOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password are required");
+        try {
+          console.log("NextAuth: Authorization attempt", { email: credentials?.email });
+          
+          if (!credentials?.email || !credentials?.password) {
+            console.error("NextAuth: Email and password are required");
+            throw new Error("Email and password are required");
+          }
+          
+          await connectToDatabase();
+          console.log("NextAuth: Database connected");
+          
+          const user = await User.findOne({ where: { email: credentials.email } });
+          
+          if (!user) {
+            console.error("NextAuth: No user found with this email");
+            throw new Error("No user found with this email");
+          }
+          
+          console.log("NextAuth: User found, verifying password");
+          const isPasswordValid = await compare(credentials.password, user.password);
+          
+          if (!isPasswordValid) {
+            console.error("NextAuth: Invalid password");
+            throw new Error("Invalid password");
+          }
+          
+          console.log("NextAuth: Authentication successful", { id: user.id, role: user.role });
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+          };
+        } catch (error) {
+          console.error("NextAuth: Authorization error", error);
+          throw error;
         }
-        
-        await connectToDatabase();
-        
-        const user = await User.findOne({ where: { email: credentials.email } });
-        
-        if (!user) {
-          throw new Error("No user found with this email");
-        }
-        
-        const isPasswordValid = await compare(credentials.password, user.password);
-        
-        if (!isPasswordValid) {
-          throw new Error("Invalid password");
-        }
-        
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-        };
       }
     })
   ],

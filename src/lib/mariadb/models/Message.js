@@ -45,8 +45,6 @@ const Message = sequelize.define('Message', {
   tableName: 'messages'  // Explicitly specify the lowercase table name
 });
 
-// Define associations
-Message.belongsTo(User, { as: 'senderUser', foreignKey: 'sender' });
-Message.belongsTo(User, { as: 'receiverUser', foreignKey: 'receiver' });
+// Associations are defined in models/index.js
 
 export default Message;

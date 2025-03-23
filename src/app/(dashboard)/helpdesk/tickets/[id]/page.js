@@ -52,18 +52,18 @@ export default function HelpdeskTicketDetailsPage({ params }) {
         
         const data = await response.json();
         
-        // Also check if this ticket is assigned to this helpdesk
-        const assignmentResponse = await fetch('/api/assignments');
+        // Check if this ticket is assigned to this helpdesk
+        const assignmentResponse = await fetch(`/api/assignments?ticketId=${ticketId}`);
         if (assignmentResponse.ok) {
-          const assignments = await assignmentResponse.json();
-          const isAssigned = assignments.some(
-            a => a.user_id === data.submitted_by && a.helpdesk_id === user.id
-          );
-          
-          if (!isAssigned) {
+          const assignment = await assignmentResponse.json();
+          if (!assignment || assignment.helpdesk_id !== user.id) {
             router.replace('/helpdesk');
             return;
           }
+        } else {
+          // If no assignment found, redirect
+          router.replace('/helpdesk');
+          return;
         }
         
         setTicket(data);

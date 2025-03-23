@@ -68,20 +68,6 @@ const FormSubmission = sequelize.define('FormSubmission', {
   }
 });
 
-// Define the associations
-FormSubmission.belongsTo(FormTemplate, { foreignKey: 'form_template_id', as: 'template' });
-FormSubmission.belongsTo(User, { foreignKey: 'submitted_by', as: 'submitter' });
-
-// Make sure the model has appropriate associations:
-FormSubmission.associate = (models) => {
-  FormSubmission.belongsTo(models.FormTemplate, {
-    foreignKey: 'form_template_id',
-    as: 'template'
-  });
-  FormSubmission.belongsTo(models.User, {
-    foreignKey: 'submitted_by',
-    as: 'submitter'
-  });
-};
+// Associations are defined in models/index.js
 
 export default FormSubmission;

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
+import Link from 'next/link';
 
 // Status badge component
 const StatusBadge = ({ status }) => {
@@ -63,7 +64,7 @@ export default function AdminTicketsPage() {
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
-  const [helpdesks, setHelpdesks] = useState([]);
+  const [helpdeskUsers, setHelpdeskUsers] = useState([]);
   const [loadingHelpdesks, setLoadingHelpdesks] = useState(true);
   const [assignments, setAssignments] = useState({});
   const [updating, setUpdating] = useState(false);
@@ -85,14 +86,42 @@ export default function AdminTicketsPage() {
       
       try {
         setLoadingTickets(true);
-        const response = await fetch('/api/forms/submissions');
+        const response = await fetch('/api/forms/submissions', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
           throw new Error('Failed to fetch tickets');
         }
         
         const data = await response.json();
+        console.log("Tickets fetched:", data.length);
         setTickets(data);
+        
+        // Extract existing assignments from tickets
+        const assignmentsMap = {};
+        
+        // Fetch assignments to get ticket-helpdesk mappings
+        const assignmentsResponse = await fetch('/api/assignments', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (assignmentsResponse.ok) {
+          const assignments = await assignmentsResponse.json();
+          
+          // Map ticket IDs to helpdesk IDs
+          assignments.forEach(assignment => {
+            if (assignment && assignment.ticket_id) {
+              assignmentsMap[assignment.ticket_id] = assignment.helpdesk_id;
+            }
+          });
+        }
+        
+        setAssignments(assignmentsMap);
       } catch (error) {
         console.error('Error fetching tickets:', error);
       } finally {
@@ -110,15 +139,14 @@ export default function AdminTicketsPage() {
       
       try {
         setLoadingHelpdesks(true);
-        const response = await fetch('/api/chat');
+        const response = await fetch('/api/admin/users?role=helpdesk');
         
         if (!response.ok) {
           throw new Error('Failed to fetch users');
         }
         
         const data = await response.json();
-        const helpdeskUsers = data.filter(u => u.role === 'helpdesk');
-        setHelpdesks(helpdeskUsers);
+        setHelpdeskUsers(data);
       } catch (error) {
         console.error('Error fetching helpdesks:', error);
       } finally {
@@ -129,35 +157,6 @@ export default function AdminTicketsPage() {
     fetchHelpdesks();
   }, [isAuthenticated]);
 
-  // Fetch existing assignments
-  useEffect(() => {
-    const fetchAssignments = async () => {
-      if (!isAuthenticated || tickets.length === 0) return;
-      
-      try {
-        const response = await fetch('/api/assignments');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch assignments');
-        }
-        
-        const data = await response.json();
-        
-        // Create a mapping of user_id to helpdesk_id
-        const assignmentMap = {};
-        data.forEach(assignment => {
-          assignmentMap[assignment.user_id] = assignment.helpdesk_id;
-        });
-        
-        setAssignments(assignmentMap);
-      } catch (error) {
-        console.error('Error fetching assignments:', error);
-      }
-    };
-    
-    fetchAssignments();
-  }, [isAuthenticated, tickets]);
-  
   // Filter tickets
   const filteredTickets = tickets.filter(ticket => {
     const statusMatch = filterStatus === 'all' || ticket.status === filterStatus;
@@ -180,14 +179,14 @@ export default function AdminTicketsPage() {
   };
   
   // Handle assignment change
-  const handleAssignmentChange = async (userId, helpdeskId) => {
+  const handleAssignmentChange = async (ticketId, helpdeskId) => {
     setUpdating(true);
     
     try {
       // If helpdeskId is empty, remove the assignment
       if (!helpdeskId) {
         // Call API to delete assignment
-        const deleteResponse = await fetch(`/api/assignments?userId=${userId}`, {
+        const deleteResponse = await fetch(`/api/assignments?ticketId=${ticketId}`, {
           method: 'DELETE'
         });
         
@@ -198,7 +197,7 @@ export default function AdminTicketsPage() {
         // Update local state
         setAssignments(prev => {
           const newAssignments = { ...prev };
-          delete newAssignments[userId];
+          delete newAssignments[ticketId];
           return newAssignments;
         });
         
@@ -214,7 +213,7 @@ export default function AdminTicketsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            userId,
+            ticketId,
             helpdeskId
           }),
         });
@@ -226,7 +225,7 @@ export default function AdminTicketsPage() {
         // Update local state
         setAssignments(prev => ({
           ...prev,
-          [userId]: helpdeskId
+          [ticketId]: helpdeskId
         }));
         
         setNotification({
@@ -235,18 +234,13 @@ export default function AdminTicketsPage() {
         });
       }
     } catch (error) {
-      console.error('Error updating assignment:', error);
+      console.error("Error updating assignment:", error);
       setNotification({
         type: 'error',
-        message: error.message || 'Failed to update assignment'
+        message: error.message
       });
     } finally {
       setUpdating(false);
-      
-      // Clear notification after 3 seconds
-      setTimeout(() => {
-        setNotification(null);
-      }, 3000);
     }
   };
   
@@ -344,10 +338,10 @@ export default function AdminTicketsPage() {
                     Ticket ID
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    User
+                    Ticket Type
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Type
+                    Submitted By
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
@@ -368,7 +362,7 @@ export default function AdminTicketsPage() {
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
                 {filteredTickets.map((ticket) => {
-                  const helpdeskAssignment = assignments[ticket.submitted_by];
+                  const helpdeskAssignment = assignments[ticket.id];
                   const submitterId = ticket.submitted_by;
                   
                   return (
@@ -379,11 +373,11 @@ export default function AdminTicketsPage() {
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {ticket.id.substring(0, 8)}...
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 dark:text-white">
-                        {ticket.submitter?.name || 'Unknown'}
-                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {ticket.template?.name || 'Unknown Form'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {ticket.submitter?.name || 'Unknown'}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {formatDate(ticket.created_at)}
@@ -397,12 +391,12 @@ export default function AdminTicketsPage() {
                       <td className="px-4 py-4">
                         <select
                           value={helpdeskAssignment || ''}
-                          onChange={(e) => handleAssignmentChange(submitterId, e.target.value)}
+                          onChange={(e) => handleAssignmentChange(ticket.id, e.target.value)}
                           className="block w-full pl-3 pr-10 py-1 text-sm border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md dark:bg-gray-700 dark:border-gray-600"
                           disabled={updating}
                         >
-                          <option value="">Not Assigned</option>
-                          {helpdesks.map((helpdesk) => (
+                          <option value="">Unassigned</option>
+                          {helpdeskUsers.map((helpdesk) => (
                             <option key={helpdesk.id} value={helpdesk.id}>
                               {helpdesk.name}
                             </option>
@@ -410,12 +404,9 @@ export default function AdminTicketsPage() {
                         </select>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Button
-                          onClick={() => router.push(`/admin/tickets/${ticket.id}`)}
-                          size="sm"
-                        >
-                          View Details
-                        </Button>
+                        <Link href={`/admin/tickets/${ticket.id}`}>
+                          <span className="text-blue-600 hover:underline">View</span>
+                        </Link>
                       </td>
                     </tr>
                   );

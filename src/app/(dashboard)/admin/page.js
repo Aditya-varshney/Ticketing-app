@@ -4,17 +4,19 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
+import { Users, HeadsetIcon, TicketIcon, AlertTriangleIcon } from 'lucide-react';
+import Link from 'next/link';
 
 // Statistic Card Component
 const StatCard = ({ title, value, icon, color }) => {
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 ${color}`}>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
           <p className="text-3xl font-bold mt-1">{value}</p>
         </div>
-        <div className={`p-3 rounded-full bg-opacity-20 ${color.replace('border', 'bg')}`}>
+        <div className={`p-3 rounded-full ${color} text-white`}>
           {icon}
         </div>
       </div>
@@ -43,164 +45,94 @@ const ChartBar = ({ label, value, maxValue, color }) => {
 };
 
 // New component for ticket notifications
-const TicketNotification = ({ ticket, onAssign }) => {
+const TicketNotification = ({ ticket, onAssign, isAssigned = false }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 border-l-4 border-yellow-500 rounded-lg shadow p-4 mb-3">
+    <div className="bg-gray-700 border-l-4 border-yellow-600 rounded-lg shadow p-4 mb-3">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-sm font-semibold">{ticket.template?.name || 'Unknown Form'}</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <h3 className="text-sm font-semibold text-white">{ticket.template?.name || 'Unknown Form'}</h3>
+          <p className="text-xs text-gray-300">
             Submitted by {ticket.submitter?.name} • {new Date(ticket.created_at).toLocaleString()}
           </p>
         </div>
-        <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full dark:bg-yellow-900/30 dark:text-yellow-300">
-          New!
+        <span className="bg-yellow-900 text-yellow-300 text-xs font-medium px-2 py-0.5 rounded-full">
+          {ticket.status.replace('_', ' ').charAt(0).toUpperCase() + ticket.status.replace('_', ' ').slice(1)}
         </span>
       </div>
       <div className="mt-2 flex justify-end">
-        <button 
-          onClick={() => onAssign(ticket)} 
-          className="text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded"
-        >
-          Assign
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// User Card component for displaying user details
-const UserCard = ({ userData, helpdeskStaff, currentAssignment, onAssign, isAssigning }) => {
-  const [selectedHelpdesk, setSelectedHelpdesk] = useState(currentAssignment || '');
-  
-  const handleAssignChange = (e) => {
-    setSelectedHelpdesk(e.target.value);
-  };
-  
-  const handleSubmit = () => {
-    onAssign(userData.id, selectedHelpdesk);
-  };
-  
-  const isAssigned = !!currentAssignment;
-  
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
-      <div className="flex items-center mb-3">
-        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mr-3">
-          {userData.avatar ? (
-            <img src={userData.avatar} alt={userData.name} className="w-12 h-12 rounded-full" />
-          ) : (
-            <span className="text-xl font-bold text-blue-600 dark:text-blue-300">
-              {userData.name.charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
-        <div>
-          <h3 className="font-medium text-lg">{userData.name}</h3>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">{userData.email}</p>
-        </div>
-      </div>
-      
-      <div className="mb-3">
-        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 mb-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span>Role: <span className="font-medium">{userData.role}</span></span>
-        </div>
-        
-        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span>Joined: <span className="font-medium">{new Date(userData.created_at).toLocaleDateString()}</span></span>
-        </div>
-      </div>
-      
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Assigned Helpdesk
-        </label>
-        <div className="flex space-x-2">
-          <select 
-            value={selectedHelpdesk} 
-            onChange={handleAssignChange}
-            className="flex-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2"
-            disabled={isAssigning}
+        {!isAssigned && (
+          <button 
+            onClick={() => onAssign(ticket)} 
+            className="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1 px-2 rounded"
           >
-            <option value="">Not Assigned</option>
-            {helpdeskStaff.map(staff => (
-              <option key={staff.id} value={staff.id}>
-                {staff.name}
-              </option>
-            ))}
-          </select>
-          <Button
-            onClick={handleSubmit}
-            disabled={isAssigning || selectedHelpdesk === currentAssignment}
-            variant={isAssigned ? "info" : "success"}
-            size="sm"
-          >
-            {isAssigning ? 'Saving...' : isAssigned ? 'Reassign' : 'Assign'}
-          </Button>
-        </div>
+            Assign
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
 // Helpdesk Card component for displaying helpdesk details
-const HelpdeskCard = ({ staffData, assignedUsers }) => {
+const HelpdeskCard = ({ staffData, assignedTickets }) => {
+  const openTickets = assignedTickets.filter(t => t.status === 'open').length;
+  const resolvedTickets = assignedTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+  
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700">
+    <div className="bg-gray-700 rounded-lg shadow-md p-4 border border-gray-600">
       <div className="flex items-center mb-3">
-        <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mr-3">
+        <div className="w-12 h-12 rounded-full bg-indigo-900 flex items-center justify-center mr-3">
           {staffData.avatar ? (
             <img src={staffData.avatar} alt={staffData.name} className="w-12 h-12 rounded-full" />
           ) : (
-            <span className="text-xl font-bold text-indigo-600 dark:text-indigo-300">
+            <span className="text-xl font-bold text-indigo-300">
               {staffData.name.charAt(0).toUpperCase()}
             </span>
           )}
         </div>
         <div>
-          <h3 className="font-medium text-lg">{staffData.name}</h3>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">{staffData.email}</p>
+          <h3 className="font-medium text-lg text-white">{staffData.name}</h3>
+          <p className="text-gray-300 text-sm">{staffData.email}</p>
         </div>
       </div>
       
       <div className="mb-3">
         <div className="flex justify-between mb-2">
-          <span className="text-sm text-gray-600 dark:text-gray-300">Assigned Users</span>
-          <span className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full">
-            {assignedUsers.length}
+          <span className="text-sm text-gray-300">Assigned Tickets</span>
+          <span className="bg-blue-900 text-blue-300 text-xs font-medium px-2.5 py-0.5 rounded-full">
+            {assignedTickets.length}
           </span>
         </div>
         
+        <div className="flex justify-between text-xs text-gray-400 mb-1">
+          <span>Open: {openTickets}</span>
+          <span>Resolved: {resolvedTickets}</span>
+        </div>
+        
         <div className="flex flex-wrap gap-1 mb-2">
-          {assignedUsers.length > 0 ? (
-            assignedUsers.slice(0, 3).map(user => (
-              <span key={user.id} className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded">
-                {user.name}
+          {assignedTickets.length > 0 ? (
+            assignedTickets.slice(0, 3).map(ticket => (
+              <span key={ticket.id} className="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded">
+                {ticket.template?.name || 'Ticket'}
               </span>
             ))
           ) : (
-            <span className="text-sm text-gray-500 dark:text-gray-400 italic">No users assigned</span>
+            <span className="text-sm text-gray-400 italic">No tickets assigned</span>
           )}
-          {assignedUsers.length > 3 && (
-            <span className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded">
-              +{assignedUsers.length - 3} more
+          {assignedTickets.length > 3 && (
+            <span className="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded">
+              +{assignedTickets.length - 3} more
             </span>
           )}
         </div>
       </div>
       
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+      <div className="border-t border-gray-600 pt-3">
         <Button
           variant="outline"
           size="sm"
-          className="w-full"
-          onClick={() => {}} // Could show a modal with full list of assigned users
+          className="w-full bg-gray-600 hover:bg-gray-700 text-white border-gray-500"
+          onClick={() => {}} // Could show a modal with full list of assigned tickets
         >
           View Details
         </Button>
@@ -213,13 +145,16 @@ export default function AdminDashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const [statistics, setStatistics] = useState({
-    totalUsers: 0,
     totalHelpdesks: 0,
     totalTickets: 0,
+    totalUsers: 0,
     openTickets: 0,
+    inProgressTickets: 0,
     resolvedTickets: 0,
-    pendingTickets: 0,
+    closedTickets: 0,
     urgentTickets: 0,
+    highPriorityTickets: 0,
+    pendingReviewTickets: 0,
     helpdesks: [],
     ticketTypes: []
   });
@@ -235,15 +170,12 @@ export default function AdminDashboard() {
   const [assigning, setAssigning] = useState(false);
   const [notification, setNotification] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [currentHelpdeskFilter, setCurrentHelpdeskFilter] = useState(null);
 
   // New state for user management
   const [users, setUsers] = useState([]);
   const [helpdeskStaff, setHelpdeskStaff] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [userAssignments, setUserAssignments] = useState({});
-  const [currentHelpdeskFilter, setCurrentHelpdeskFilter] = useState('all');
-  const [isAssigning, setIsAssigning] = useState(false);
-  const [showUserManagement, setShowUserManagement] = useState(false);
 
   // Verify user authentication and role
   useEffect(() => {
@@ -261,26 +193,100 @@ export default function AdminDashboard() {
       
       try {
         setLoadingStats(true);
+        console.log("Fetching statistics - START");
         
-        // Fetch users
-        const usersResponse = await fetch('/api/chat');
-        const users = usersResponse.ok ? await usersResponse.json() : [];
+        // Fetch all helpdesk users
+        const helpdeskResponse = await fetch('/api/admin/helpdesk-users', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        const helpdesks = helpdeskResponse.ok ? await helpdeskResponse.json() : [];
+        console.log("Helpdesk users for statistics:", helpdesks.length);
+        
+        // Fetch regular users count
+        const usersResponse = await fetch('/api/admin/users?role=user', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        const regularUsers = usersResponse.ok ? await usersResponse.json() : [];
+        console.log("Regular users for statistics:", regularUsers.length);
+        
+        // If no helpdesks found, try debug mode as fallback
+        if (helpdesks.length === 0) {
+          console.log("No helpdesks found for statistics, trying debug mode...");
+          const debugResponse = await fetch('/api/admin/helpdesk-users?debug=true', {
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          if (debugResponse.ok) {
+            const debugHelpdesks = await debugResponse.json();
+            console.log("DEBUG: Using test helpdesk data for statistics:", debugHelpdesks.length);
+            if (debugHelpdesks.length > 0) {
+              // Use debug data for statistics
+              const helpdeskWorkloads = debugHelpdesks.map(helpdesk => ({
+                id: helpdesk.id,
+                name: helpdesk.name,
+                assignedTickets: 0,
+                totalTickets: 0,
+                openTickets: 0,
+                resolvedTickets: 0,
+                performance: 0
+              }));
+              
+              setStatistics({
+                totalHelpdesks: debugHelpdesks.length,
+                totalTickets: 0,
+                totalUsers: regularUsers.length,
+                openTickets: 0,
+                inProgressTickets: 0,
+                resolvedTickets: 0,
+                closedTickets: 0,
+                urgentTickets: 0,
+                highPriorityTickets: 0,
+                pendingReviewTickets: 0,
+                helpdesks: helpdeskWorkloads,
+                ticketTypes: [],
+                refreshTimestamp: Date.now()
+              });
+              setLoadingStats(false);
+              console.log("Fetching statistics - END (debug data)");
+              return;
+            }
+          }
+        }
         
         // Fetch tickets
-        const ticketsResponse = await fetch('/api/forms/submissions');
-        const tickets = ticketsResponse.ok ? await ticketsResponse.json() : [];
+        const ticketsResponse = await fetch('/api/forms/submissions', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (!ticketsResponse.ok) {
+          const errorText = await ticketsResponse.text();
+          console.error("Error response from tickets API:", errorText);
+          console.error("Status code:", ticketsResponse.status);
+          throw new Error(`Failed to fetch tickets: ${ticketsResponse.status} - ${errorText.substring(0, 100)}`);
+        }
+        
+        const tickets = await ticketsResponse.json();
         
         // Fetch ticket types
-        const typesResponse = await fetch('/api/forms/templates');
+        const typesResponse = await fetch('/api/forms/templates', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         const ticketTypes = typesResponse.ok ? await typesResponse.json() : [];
         
-        // Fetch assignments to calculate helpdesk workload
-        const assignmentsResponse = await fetch('/api/assignments');
+        // Fetch ticket assignments
+        const assignmentsResponse = await fetch('/api/assignments', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         const assignments = assignmentsResponse.ok ? await assignmentsResponse.json() : [];
-        
-        // Filter users by role
-        const regularUsers = users.filter(u => u.role === 'user');
-        const helpdesks = users.filter(u => u.role === 'helpdesk');
+        console.log("Assignments for statistics:", assignments.length);
         
         // Calculate ticket statistics
         const openTickets = tickets.filter(t => t.status === 'open').length;
@@ -292,17 +298,16 @@ export default function AdminDashboard() {
         const highPriorityTickets = tickets.filter(t => t.priority === 'high').length;
         const pendingReviewTickets = tickets.filter(t => t.priority === 'pending').length;
         
-        // Calculate helpdesk workloads
+        // Calculate helpdesk workloads based on ticket assignments
         const helpdeskWorkloads = helpdesks.map(helpdesk => {
           const helpdeskAssignments = assignments.filter(a => a.helpdesk_id === helpdesk.id);
-          const helpdeskTickets = tickets.filter(t => 
-            helpdeskAssignments.some(a => a.user_id === t.submitted_by)
-          );
+          const assignedTicketIds = helpdeskAssignments.map(a => a.ticket_id);
+          const helpdeskTickets = tickets.filter(t => assignedTicketIds.includes(t.id));
           
           return {
             id: helpdesk.id,
             name: helpdesk.name,
-            assignedUsers: helpdeskAssignments.length,
+            assignedTickets: helpdeskAssignments.length,
             totalTickets: helpdeskTickets.length,
             openTickets: helpdeskTickets.filter(t => t.status === 'open').length,
             resolvedTickets: helpdeskTickets.filter(t => t.status === 'resolved').length,
@@ -322,10 +327,11 @@ export default function AdminDashboard() {
           };
         }).sort((a, b) => b.count - a.count);
         
+        // Update statistics with all collected data
         setStatistics({
-          totalUsers: regularUsers.length,
           totalHelpdesks: helpdesks.length,
           totalTickets: tickets.length,
+          totalUsers: regularUsers.length,
           openTickets,
           inProgressTickets,
           resolvedTickets,
@@ -334,10 +340,18 @@ export default function AdminDashboard() {
           highPriorityTickets,
           pendingReviewTickets,
           helpdesks: helpdeskWorkloads,
-          ticketTypes: formUsage
+          ticketTypes: formUsage,
+          refreshTimestamp: Date.now()
         });
+
+        console.log("Fetching statistics - END (real data)");
+        
       } catch (error) {
-        console.error('Error fetching dashboard statistics:', error);
+        console.error("Error fetching statistics:", error);
+        setNotification({
+          type: 'error',
+          message: `Failed to load dashboard data: ${error.message}`
+        });
       } finally {
         setLoadingStats(false);
       }
@@ -353,103 +367,214 @@ export default function AdminDashboard() {
       
       try {
         setLoadingTickets(true);
-        
-        // Add debugging console log
-        console.log("Fetching tickets for admin dashboard...");
+        console.log("Fetching recent tickets - START");
         
         // Fetch all tickets
-        const ticketsResponse = await fetch('/api/forms/submissions');
+        const ticketsResponse = await fetch('/api/forms/submissions', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         if (!ticketsResponse.ok) {
-          console.error("Error response:", await ticketsResponse.text());
-          throw new Error('Failed to fetch tickets');
+          const errorText = await ticketsResponse.text();
+          console.error("Error response from tickets API:", errorText);
+          console.error("Status code:", ticketsResponse.status);
+          throw new Error(`Failed to fetch tickets: ${ticketsResponse.status} - ${errorText.substring(0, 100)}`);
         }
         
         const tickets = await ticketsResponse.json();
-        console.log("Fetched tickets for admin:", tickets.length);
         
-        // Get recent tickets (last 5)
-        const recent = [...tickets].sort((a, b) => 
+        // Get assignments to identify unassigned tickets and assigned tickets
+        const assignmentsResponse = await fetch('/api/assignments', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (!assignmentsResponse.ok) {
+          const errorText = await assignmentsResponse.text();
+          console.error("Error response from assignments API:", errorText);
+          console.error("Status code:", assignmentsResponse.status);
+          throw new Error(`Failed to fetch assignments: ${assignmentsResponse.status} - ${errorText.substring(0, 100)}`);
+        }
+        const assignments = await assignmentsResponse.json();
+        
+        // Create a mapping of tickets to helpdesks
+        const ticketAssignments = {};
+        assignments.forEach(a => {
+          if (a && a.ticket_id) {
+            ticketAssignments[a.ticket_id] = a.helpdesk_id;
+          }
+        });
+        
+        // Filter for unassigned tickets
+        const unassigned = tickets.filter(ticket => 
+          !ticketAssignments[ticket.id] && ticket.status !== 'closed' && ticket.status !== 'resolved'
+        );
+        setUnassignedTickets(unassigned);
+        
+        // Get recently assigned tickets (last 5) - distinct from unassigned tickets
+        const assignedTickets = tickets.filter(ticket => 
+          ticketAssignments[ticket.id] && ticket.status !== 'closed' && ticket.status !== 'resolved'
+        );
+        const recent = [...assignedTickets].sort((a, b) => 
           new Date(b.created_at) - new Date(a.created_at)
         ).slice(0, 5);
         setRecentTickets(recent);
         
-        // Get assignments to identify unassigned tickets
-        const assignmentsResponse = await fetch('/api/assignments');
-        if (!assignmentsResponse.ok) throw new Error('Failed to fetch assignments');
-        const assignments = await assignmentsResponse.json();
-        
-        // Create a mapping of users to helpdesks
-        const userAssignments = {};
-        assignments.forEach(a => {
-          userAssignments[a.user_id] = a.helpdesk_id;
-        });
-        
-        // Filter for unassigned tickets (tickets whose submitters are not assigned to helpdesk)
-        const unassigned = tickets.filter(ticket => 
-          !userAssignments[ticket.submitted_by] && ticket.status !== 'closed' && ticket.status !== 'resolved'
-        );
-        setUnassignedTickets(unassigned);
-        
         // Fetch available helpdesks for assignment
-        const usersResponse = await fetch('/api/chat');
-        if (usersResponse.ok) {
-          const users = await usersResponse.json();
-          setHelpdesks(users.filter(u => u.role === 'helpdesk'));
+        const usersResponse = await fetch('/api/admin/helpdesk-users', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (!usersResponse.ok) {
+          const errorText = await usersResponse.text();
+          console.error("Error response from helpdesk users API:", errorText);
+          console.error("Status code:", usersResponse.status);
+          throw new Error(`Failed to fetch helpdesk users: ${usersResponse.status} - ${errorText.substring(0, 100)}`);
         }
+        const helpdeskUsers = await usersResponse.json();
+        console.log("Helpdesk users for assignment:", helpdeskUsers.length);
+        
+        // If no helpdesks found, try debug mode as fallback
+        if (helpdeskUsers.length === 0) {
+          console.log("No helpdesks found for assignment, trying debug mode...");
+          const debugResponse = await fetch('/api/admin/helpdesk-users?debug=true', {
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          if (debugResponse.ok) {
+            const debugHelpdesks = await debugResponse.json();
+            console.log("DEBUG: Using test helpdesk data for assignment:", debugHelpdesks.length);
+            if (debugHelpdesks.length > 0) {
+              setHelpdeskStaff(debugHelpdesks);
+            }
+          }
+        } else {
+          setHelpdeskStaff(helpdeskUsers);
+        }
+
+        console.log("Fetching recent tickets - END");
       } catch (error) {
-        console.error("Error fetching tickets:", error);
+        console.error('Error fetching dashboard data:', error);
+        setNotification({
+          type: 'error',
+          message: 'Failed to load dashboard data: ' + error.message
+        });
       } finally {
         setLoadingTickets(false);
       }
     };
     
     fetchRecentTickets();
-    
-    // Set up polling to check for new tickets every 60 seconds
-    const intervalId = setInterval(fetchRecentTickets, 60000);
-    return () => clearInterval(intervalId);
   }, [isAuthenticated, user]);
   
-  // Fetch users, helpdestk staff and assignments
+  // Update fetchHelpdeskStaff to also fetch ticket assignments
   useEffect(() => {
-    const fetchUsersAndAssignments = async () => {
+    const fetchHelpdeskStaff = async () => {
       if (!isAuthenticated || !user || user.role !== 'admin') return;
       
       try {
         setLoadingUsers(true);
+        console.log("Fetching helpdesk staff - START");
         
-        // Fetch all users
-        const usersResponse = await fetch('/api/chat');
-        if (!usersResponse.ok) throw new Error('Failed to fetch users');
-        const allUsers = await usersResponse.json();
+        // Fetch helpdesk staff from dedicated endpoint
+        const usersResponse = await fetch('/api/admin/helpdesk-users', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (!usersResponse.ok) {
+          const errorText = await usersResponse.text();
+          console.error("Error response from helpdesk users API:", errorText);
+          console.error("Status code:", usersResponse.status);
+          throw new Error(`Failed to fetch helpdesk staff: ${usersResponse.status} - ${errorText.substring(0, 100)}`);
+        }
+        const helpdesks = await usersResponse.json();
+        console.log("Helpdesk staff fetched:", helpdesks.length);
         
-        // Separate regular users and helpdesk staff
-        const regularUsers = allUsers.filter(u => u.role === 'user');
-        const helpdesks = allUsers.filter(u => u.role === 'helpdesk');
+        // If no helpdesks found, try debug mode as fallback
+        if (helpdesks.length === 0) {
+          console.log("No helpdesks found, trying debug mode...");
+          const debugResponse = await fetch('/api/admin/helpdesk-users?debug=true', {
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          if (debugResponse.ok) {
+            const debugHelpdesks = await debugResponse.json();
+            console.log("DEBUG: Using test helpdesk data:", debugHelpdesks.length);
+            if (debugHelpdesks.length > 0) {
+              // Use debug data and continue with the fetch process
+              setHelpdeskStaff(debugHelpdesks);
+              return;
+            }
+          }
+        }
         
-        setUsers(regularUsers);
-        setHelpdeskStaff(helpdesks);
+        // Fetch all tickets to have their data available
+        const ticketsResponse = await fetch('/api/forms/submissions', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (!ticketsResponse.ok) {
+          const errorText = await ticketsResponse.text();
+          console.error("Error response from tickets API:", errorText);
+          console.error("Status code:", ticketsResponse.status);
+          throw new Error(`Failed to fetch tickets: ${ticketsResponse.status} - ${errorText.substring(0, 100)}`);
+        }
+        const tickets = await ticketsResponse.json();
+        console.log("Tickets fetched:", tickets.length);
         
-        // Fetch assignments to create user-helpdesk mapping
-        const assignmentsResponse = await fetch('/api/assignments');
-        if (!assignmentsResponse.ok) throw new Error('Failed to fetch assignments');
+        // Fetch assignments to get ticket-helpdesk mappings
+        const assignmentsResponse = await fetch('/api/assignments', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        if (!assignmentsResponse.ok) {
+          const errorText = await assignmentsResponse.text();
+          console.error("Error response from assignments API:", errorText);
+          console.error("Status code:", assignmentsResponse.status);
+          throw new Error(`Failed to fetch assignments: ${assignmentsResponse.status} - ${errorText.substring(0, 100)}`);
+        }
         const assignments = await assignmentsResponse.json();
+        console.log("Assignments fetched:", assignments.length);
         
-        // Create a mapping of user_id to helpdesk_id
-        const assignmentMap = {};
-        assignments.forEach(a => {
-          assignmentMap[a.user_id] = a.helpdesk_id;
+        // Create a map of helpdesk IDs to assigned tickets
+        const helpdeskTicketsMap = {};
+        
+        // For each helpdesk, find their assigned tickets
+        helpdesks.forEach(helpdesk => {
+          // Find ticket assignments for this helpdesk
+          const helpdeskAssignments = assignments.filter(a => 
+            a.helpdesk_id === helpdesk.id
+          );
+          
+          // Get the tickets corresponding to those assignments
+          const assignedTicketIds = helpdeskAssignments.map(a => a.ticket_id);
+          const assignedTickets = tickets.filter(t => 
+            assignedTicketIds.includes(t.id)
+          );
+          
+          // Add the tickets to the helpdesk user object
+          helpdesk.assignedTickets = assignedTickets;
         });
         
-        setUserAssignments(assignmentMap);
+        // Continue with regular flow
+        setHelpdeskStaff(helpdesks);
+
+        console.log("Fetching helpdesk staff - END");
       } catch (error) {
-        console.error("Error fetching users and assignments:", error);
+        console.error('Error fetching helpdesk staff:', error);
+        setNotification({
+          type: 'error',
+          message: 'Failed to load helpdesk staff data'
+        });
       } finally {
         setLoadingUsers(false);
       }
     };
     
-    fetchUsersAndAssignments();
+    fetchHelpdeskStaff();
   }, [isAuthenticated, user]);
   
   // Handle opening the assign modal
@@ -466,24 +591,33 @@ export default function AdminDashboard() {
     try {
       setAssigning(true);
       
-      // Create assignment between user and helpdesk
+      // Create assignment between ticket and helpdesk
       const response = await fetch('/api/assignments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
-          userId: selectedTicket.submitted_by,
+          ticketId: selectedTicket.id,
           helpdeskId: selectedHelpdesk
         }),
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create assignment');
+        const errorText = await response.text();
+        console.error("Error creating assignment:", errorText);
+        console.error("Status code:", response.status);
+        throw new Error(`Failed to create assignment: ${response.status} - ${errorText.substring(0, 100)}`);
       }
       
-      // Remove ticket from unassigned list
-      setUnassignedTickets(prev => prev.filter(t => t.id !== selectedTicket.id));
+      // Remove ticket from unassigned list and add to recent tickets
+      const updatedUnassignedTickets = unassignedTickets.filter(t => t.id !== selectedTicket.id);
+      setUnassignedTickets(updatedUnassignedTickets);
+      
+      // Add the newly assigned ticket to recent tickets
+      const updatedRecentTickets = [selectedTicket, ...recentTickets].slice(0, 5);
+      setRecentTickets(updatedRecentTickets);
       
       // Show notification
       setNotification({
@@ -507,79 +641,48 @@ export default function AdminDashboard() {
     }
   };
 
-  // Handle assigning user to helpdesk
-  const handleAssignUser = async (userId, helpdeskId) => {
-    if (isAssigning) return;
+  // Get tickets assigned to a specific helpdesk
+  const getTicketsAssignedTo = (helpdeskId) => {
+    // Find the helpdesk staff with the matching ID
+    const helpdesk = helpdeskStaff.find(h => h.id === helpdeskId);
     
-    try {
-      setIsAssigning(true);
-      
-      if (helpdeskId) {
-        // Assign user to helpdesk
-        const response = await fetch('/api/assignments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId,
-            helpdeskId
-          }),
-        });
-        
-        if (!response.ok) throw new Error('Failed to assign user');
-        
-        // Update local state
-        setUserAssignments(prev => ({
-          ...prev,
-          [userId]: helpdeskId
-        }));
-      } else {
-        // Remove assignment
-        const response = await fetch(`/api/assignments?userId=${userId}`, {
-          method: 'DELETE'
-        });
-        
-        if (!response.ok) throw new Error('Failed to remove assignment');
-        
-        // Update local state
-        setUserAssignments(prev => {
-          const updated = { ...prev };
-          delete updated[userId];
-          return updated;
-        });
-      }
-      
-      setNotification({
-        type: 'success',
-        message: helpdeskId ? 'User assigned successfully' : 'Assignment removed successfully'
-      });
-    } catch (error) {
-      console.error("Error assigning user:", error);
-      setNotification({
-        type: 'error',
-        message: error.message
-      });
-    } finally {
-      setIsAssigning(false);
-      
-      // Clear notification after 3 seconds
-      setTimeout(() => {
-        setNotification(null);
-      }, 3000);
+    // If helpdesk exists and has assignedTickets property, return those tickets
+    if (helpdesk && helpdesk.assignedTickets) {
+      return helpdesk.assignedTickets;
     }
+    
+    // Return empty array if no matches
+    return [];
   };
-  
-  // Filter users by assigned helpdesk
-  const filteredUsers = users.filter(user => {
-    if (currentHelpdeskFilter === 'all') return true;
-    if (currentHelpdeskFilter === 'unassigned') return !userAssignments[user.id];
-    return userAssignments[user.id] === currentHelpdeskFilter;
-  });
-  
-  // Get users assigned to a specific helpdesk
-  const getUsersAssignedTo = (helpdeskId) => {
-    return users.filter(user => userAssignments[user.id] === helpdeskId);
+
+  // Function to filter helpdesk data
+  const getFilteredHelpdeskData = () => {
+    if (!currentHelpdeskFilter) {
+      return statistics.helpdesks;
+    }
+    return statistics.helpdesks.filter(helpdesk => helpdesk.id === currentHelpdeskFilter);
+  };
+
+  // Helper for helpdesk filter selection
+  const handleHelpdeskFilterChange = (e) => {
+    setCurrentHelpdeskFilter(e.target.value === "" ? null : e.target.value);
+  };
+
+  // Add a refresh function that can be called from a button click
+  const refreshDashboard = () => {
+    console.log("Manual dashboard refresh triggered");
+    setLoadingStats(true);
+    setLoadingTickets(true);
+    setLoadingUsers(true);
+    
+    // Create a small delay to ensure state updates are processed before refetching
+    setTimeout(() => {
+      // These functions will be executed on next render due to state changes
+      setStatistics(prev => ({
+        ...prev,
+        refreshTimestamp: Date.now() // This won't trigger re-renders due to our fixed dependency arrays
+      }));
+    }, 100);
   };
 
   if (loading || loadingStats) {
@@ -620,301 +723,231 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Admin Dashboard</h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Welcome back, {user?.name}!
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button 
-              onClick={() => router.push('/admin/ticket-forms')}
-              variant="info"
-              size="md"
-            >
-              Ticket Forms
-            </Button>
-            <Button 
-              onClick={() => router.push('/admin/tickets')}
-              variant="success"
-              size="md"
-            >
-              All Tickets
-            </Button>
-            <Button 
-              onClick={() => setShowUserManagement(!showUserManagement)}
-              variant={showUserManagement ? "primary" : "warning"}
-              size="md"
-            >
-              {showUserManagement ? "Show Statistics" : "User Management"}
-            </Button>
-            <Button onClick={() => logout()} variant="danger" size="md">
-              Logout
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {notification && (
-        <div className={`mb-6 p-4 rounded-md ${
-          notification.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
-        }`}>
-          {notification.message}
-        </div>
-      )}
-      
-      {showUserManagement ? (
-        // User Management Section
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">User & Helpdesk Management</h2>
-          
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-3">Helpdesk Staff</h3>
-            {loadingUsers ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : helpdeskStaff.length === 0 ? (
-              <p className="text-center text-gray-500 dark:text-gray-400 py-4">
-                No helpdesk staff found. Create helpdesk accounts first.
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold mb-2 text-white">Admin Dashboard</h1>
+              <p className="text-gray-300">
+                Welcome back, {user?.name}!
               </p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {helpdeskStaff.map(staff => (
-                  <HelpdeskCard 
-                    key={staff.id}
-                    staffData={staff}
-                    assignedUsers={getUsersAssignedTo(staff.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-medium">Regular Users</h3>
-              
-              <div className="flex items-center">
-                <span className="text-sm mr-2">Filter by:</span>
-                <select
-                  value={currentHelpdeskFilter}
-                  onChange={(e) => setCurrentHelpdeskFilter(e.target.value)}
-                  className="border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white p-2"
-                >
-                  <option value="all">All Users</option>
-                  <option value="unassigned">Unassigned</option>
-                  {helpdeskStaff.map(staff => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.name}'s Users
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
-            
-            {loadingUsers ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <p className="text-center text-gray-500 dark:text-gray-400 py-4">
-                No users match the selected filter.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredUsers.map(userData => (
-                  <UserCard
-                    key={userData.id}
-                    userData={userData}
-                    helpdeskStaff={helpdeskStaff}
-                    currentAssignment={userAssignments[userData.id]}
-                    onAssign={handleAssignUser}
-                    isAssigning={isAssigning}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/admin/ticket-forms"
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Ticket Forms
+              </Link>
+              <Link 
+                href="/admin/tickets"
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                All Tickets
+              </Link>
+              <button
+                onClick={logout}
+                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
-      ) : (
-        // Statistics Dashboard Section - your existing statistics code
+        
+        {notification && (
+          <div className={`mb-6 p-4 rounded-md ${
+            notification.type === 'success' 
+              ? 'bg-green-900 border border-green-700 text-green-300' 
+              : 'bg-red-900 border border-red-700 text-red-300'
+          }`}>
+            {notification.message}
+          </div>
+        )}
+
         <>
           {/* Summary Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <StatCard 
-              title="Total Users" 
-              value={statistics.totalUsers}
-              icon={
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              }
-              color="border-blue-500"
+            {/* Users statistics card */}
+            <StatCard
+              title="Total Users"
+              value={statistics.totalUsers || 0}
+              icon={<Users className="h-6 w-6" />}
+              color="bg-indigo-600"
             />
-            <StatCard 
-              title="Helpdesk Staff" 
-              value={statistics.totalHelpdesks}
-              icon={
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              }
-              color="border-indigo-500"
+            
+            {/* Helpdesk Staff statistics card */}
+            <StatCard
+              title="Helpdesk Staff"
+              value={statistics.totalHelpdesks || 0}
+              icon={<HeadsetIcon className="h-6 w-6" />}
+              color="bg-blue-600"
             />
-            <StatCard 
-              title="Total Tickets" 
-              value={statistics.totalTickets}
-              icon={
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              }
-              color="border-green-500"
+            
+            {/* Total Tickets statistics card */}
+            <StatCard
+              title="Total Tickets"
+              value={statistics.totalTickets || 0}
+              icon={<TicketIcon className="h-6 w-6" />}
+              color="bg-green-600"
             />
-            <StatCard 
-              title="Urgent Tickets" 
-              value={statistics.urgentTickets}
-              icon={
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              }
-              color="border-red-500"
+            
+            {/* Urgent Tickets statistics card */}
+            <StatCard
+              title="Urgent Tickets"
+              value={statistics.urgentTickets || 0}
+              icon={<AlertTriangleIcon className="h-6 w-6" />}
+              color="bg-red-600"
             />
           </div>
 
+          {/* Ticket Status Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Ticket Status Distribution */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Ticket Status Distribution</h2>
+            <div className="bg-gray-800 rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 text-white">Ticket Status Distribution</h2>
               <div className="space-y-4">
                 <ChartBar 
                   label="Open" 
                   value={statistics.openTickets} 
                   maxValue={maxTicketsValue}
-                  color="bg-blue-500" 
+                  color="bg-blue-600" 
                 />
                 <ChartBar 
                   label="In Progress" 
                   value={statistics.inProgressTickets} 
                   maxValue={maxTicketsValue}
-                  color="bg-yellow-500" 
+                  color="bg-yellow-600" 
                 />
                 <ChartBar 
                   label="Resolved" 
                   value={statistics.resolvedTickets} 
                   maxValue={maxTicketsValue}
-                  color="bg-green-500" 
+                  color="bg-green-600" 
                 />
                 <ChartBar 
                   label="Closed" 
                   value={statistics.closedTickets} 
                   maxValue={maxTicketsValue}
-                  color="bg-gray-500" 
+                  color="bg-gray-600" 
                 />
               </div>
             </div>
 
             {/* Ticket Priority Distribution */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Ticket Priority Distribution</h2>
+            <div className="bg-gray-800 rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 text-white">Ticket Priority Distribution</h2>
               <div className="space-y-4">
                 <ChartBar 
                   label="Pending Review" 
                   value={statistics.pendingReviewTickets} 
                   maxValue={maxPriorityValue}
-                  color="bg-gray-500" 
+                  color="bg-gray-600" 
                 />
                 <ChartBar 
                   label="High Priority" 
                   value={statistics.highPriorityTickets} 
                   maxValue={maxPriorityValue}
-                  color="bg-yellow-500" 
+                  color="bg-yellow-600" 
                 />
                 <ChartBar 
                   label="Urgent" 
                   value={statistics.urgentTickets} 
                   maxValue={maxPriorityValue}
-                  color="bg-red-500" 
+                  color="bg-red-600" 
                 />
               </div>
             </div>
           </div>
           
           {/* Helpdesk Performance Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Helpdesk Staff Performance</h2>
+          <div className="bg-gray-800 rounded-lg shadow p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-white">Helpdesk Staff Performance</h2>
+              <div className="flex items-center space-x-2">
+                <label htmlFor="helpdeskFilter" className="text-sm text-gray-300">
+                  Filter by Helpdesk:
+                </label>
+                <select
+                  id="helpdeskFilter"
+                  value={currentHelpdeskFilter || ""}
+                  onChange={handleHelpdeskFilterChange}
+                  className="border border-gray-700 rounded-md shadow-sm py-1 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-700 text-white"
+                >
+                  <option value="">All Helpdesks</option>
+                  {statistics.helpdesks.map(helpdesk => (
+                    <option key={helpdesk.id} value={helpdesk.id}>
+                      {helpdesk.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             
             {statistics.helpdesks.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+              <p className="text-center text-gray-400 py-4">
                 No helpdesk staff available.
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-700">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Staff
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Assigned Users
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Assigned Tickets
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Total Tickets
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Open Tickets
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Resolved
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Performance
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Workload
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                    {statistics.helpdesks.map(helpdesk => (
+                  <tbody className="bg-gray-800 divide-y divide-gray-700">
+                    {getFilteredHelpdeskData().map(helpdesk => (
                       <tr key={helpdesk.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                           {helpdesk.name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {helpdesk.assignedUsers}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                          {helpdesk.assignedTickets.length}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                           {helpdesk.totalTickets}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                           {helpdesk.openTickets}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                           {helpdesk.resolvedTickets}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <span className="mr-2 text-sm font-medium">
+                            <span className="mr-2 text-sm font-medium text-white">
                               {helpdesk.performance}%
                             </span>
-                            <div className="w-24 h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full">
-                              <div className="h-2.5 bg-green-500 rounded-full" style={{ width: `${helpdesk.performance}%` }}></div>
+                            <div className="w-24 h-2.5 bg-gray-700 rounded-full">
+                              <div className="h-2.5 bg-green-600 rounded-full" style={{ width: `${helpdesk.performance}%` }}></div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="w-24 h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full">
+                          <div className="w-24 h-2.5 bg-gray-700 rounded-full">
                             <div 
-                              className="h-2.5 bg-blue-500 rounded-full" 
+                              className="h-2.5 bg-blue-600 rounded-full" 
                               style={{ 
                                 width: maxHelpdeskWorkload > 0 
                                   ? `${(helpdesk.totalTickets / maxHelpdeskWorkload) * 100}%`
@@ -930,13 +963,106 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-          
-          {/* Popular Form Types */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            {/* ...existing code... */}
-          </div>
         </>
-      )}
+
+        {/* Recent Tickets Section */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Recent Tickets */}
+          <div className="bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4 text-white">Recently Assigned Tickets</h2>
+            {loadingTickets ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : recentTickets.length === 0 ? (
+              <p className="text-center text-gray-400 py-4">No recently assigned tickets found.</p>
+            ) : (
+              <div className="space-y-4">
+                {recentTickets.map(ticket => (
+                  <TicketNotification 
+                    key={ticket.id} 
+                    ticket={ticket} 
+                    onAssign={handleOpenAssignModal}
+                    isAssigned={true}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Unassigned Tickets */}
+          <div className="bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold mb-4 text-white">Unassigned Tickets</h2>
+            {loadingTickets ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : unassignedTickets.length === 0 ? (
+              <p className="text-center text-gray-400 py-4">No unassigned tickets found.</p>
+            ) : (
+              <div className="space-y-4">
+                {unassignedTickets.map(ticket => (
+                  <TicketNotification 
+                    key={ticket.id} 
+                    ticket={ticket} 
+                    onAssign={handleOpenAssignModal}
+                    isAssigned={false}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Ticket Assignment Modal */}
+        {showAssignModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4 text-white">Assign Ticket</h3>
+              <p className="mb-4 text-gray-300">
+                Ticket: {selectedTicket?.template?.name || 'Unknown Form'}
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Select Helpdesk Staff
+                </label>
+                <select 
+                  value={selectedHelpdesk} 
+                  onChange={(e) => setSelectedHelpdesk(e.target.value)}
+                  className="w-full border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-700 text-white py-2"
+                >
+                  <option value="">Select a helpdesk staff</option>
+                  {helpdeskStaff.map(staff => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  onClick={() => setShowAssignModal(false)}
+                  variant="outline"
+                  size="sm"
+                  disabled={assigning}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAssignTicket}
+                  variant="primary"
+                  size="sm"
+                  disabled={!selectedHelpdesk || assigning}
+                >
+                  {assigning ? 'Assigning...' : 'Assign Ticket'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

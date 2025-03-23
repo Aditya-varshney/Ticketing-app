@@ -59,12 +59,10 @@ const PriorityBadge = ({ priority }) => {
 export default function HelpdeskDashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
-  const [assignedUsers, setAssignedUsers] = useState([]);
   const [assignedTickets, setAssignedTickets] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingTickets, setLoadingTickets] = useState(true);
   
-  // Add new state for sorting
+  // Sorting state
   const [sortField, setSortField] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -77,31 +75,7 @@ export default function HelpdeskDashboard() {
     }
   }, [loading, isAuthenticated, user, router]);
 
-  // Fetch assigned users for this helpdesk
-  useEffect(() => {
-    const fetchAssignedUsers = async () => {
-      if (!isAuthenticated || !user?.id) return;
-      
-      try {
-        setLoadingUsers(true);
-        const response = await fetch(`/api/assignments?helpdeskId=${user.id}`);
-        if (response.ok) {
-          const assignments = await response.json();
-          // Extract the user data from the assignments
-          const users = assignments.map(assignment => assignment.user);
-          setAssignedUsers(users);
-        }
-      } catch (error) {
-        console.error('Error fetching assigned users:', error);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-
-    fetchAssignedUsers();
-  }, [isAuthenticated, user]);
-
-  // Fetch tickets submitted by assigned users
+  // Fetch tickets assigned to this helpdesk
   useEffect(() => {
     const fetchAssignedTickets = async () => {
       if (!isAuthenticated || !user?.id) return;
@@ -109,14 +83,21 @@ export default function HelpdeskDashboard() {
       try {
         setLoadingTickets(true);
         // Use the /api/helpdesk/tickets endpoint
-        const response = await fetch('/api/helpdesk/tickets');
+        const response = await fetch('/api/helpdesk/tickets', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         
-        if (response.ok) {
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Error response from tickets API:", errorText);
+          console.error("Status code:", response.status);
+          throw new Error(`Failed to fetch tickets: ${response.status} - ${errorText.substring(0, 100)}`);
+        } else {
           const tickets = await response.json();
           console.log("Tickets fetched for helpdesk:", tickets.length);
           setAssignedTickets(tickets);
-        } else {
-          console.error("Error response:", await response.text());
         }
       } catch (error) {
         console.error('Error fetching tickets:', error);
@@ -190,7 +171,7 @@ export default function HelpdeskDashboard() {
     });
   };
 
-  if (loading || loadingUsers || loadingTickets) {
+  if (loading || loadingTickets) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -214,48 +195,9 @@ export default function HelpdeskDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Assigned Users Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Assigned Users</h2>
-          
-          {assignedUsers.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-              You have no assigned users yet. An admin needs to assign users to you.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {assignedUsers.map(assignedUser => (
-                <div key={assignedUser.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Avatar 
-                        src={assignedUser.avatar} 
-                        alt={assignedUser.name}
-                        size="md"
-                      />
-                      <div>
-                        <h3 className="font-medium">{assignedUser.name}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {assignedUser.email}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => router.push(`/helpdesk/users/${assignedUser.id}`)}
-                      size="sm"
-                    >
-                      View Details
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Ticket List Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 lg:col-span-2">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Assigned Tickets</h2>
             

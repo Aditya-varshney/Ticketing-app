@@ -1,14 +1,14 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { connectToDatabase } from "@/lib/mariadb/connect";
-import { Assignment, User } from "@/lib/mariadb/models";
+import { User, TicketAssignment, FormSubmission } from "@/lib/mariadb/models";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
 
-// Get all assignments or filtered by user/helpdesk id
+// Get all ticket assignments or assignments for a specific ticket
 export async function GET(request) {
   try {
     // Check authentication
@@ -23,52 +23,52 @@ export async function GET(request) {
     // Connect to database
     await connectToDatabase();
     
-    // Get user info to check permissions
-    const requestingUser = await User.findByPk(session.user.id);
-    if (!requestingUser) {
+    const user = await User.findByPk(session.user.id);
+    if (!user) {
       return NextResponse.json(
         { message: "User not found" },
         { status: 404 }
       );
     }
-
+    
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const helpdeskId = searchParams.get('helpdeskId');
+    const ticketId = searchParams.get('ticketId');
     
-    // Define where clause based on parameters and user role
-    const whereClause = {};
+    // Fetch assignments based on parameters and user role
+    let assignments;
     
-    // If filtering by user ID
-    if (userId) {
-      whereClause.user_id = userId;
+    if (ticketId) {
+      // Get assignment for a specific ticket
+      assignments = await TicketAssignment.findOne({
+        where: { ticket_id: ticketId },
+        include: [
+          { model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] }
+        ]
+      });
+    } else if (user.role === 'admin') {
+      // Admins can see all assignments
+      assignments = await TicketAssignment.findAll({
+        include: [
+          { model: FormSubmission, as: 'ticket' },
+          { model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] }
+        ]
+      });
+    } else if (user.role === 'helpdesk') {
+      // Helpdesk users can see their assignments
+      assignments = await TicketAssignment.findAll({
+        where: { helpdesk_id: user.id },
+        include: [
+          { model: FormSubmission, as: 'ticket' }
+        ]
+      });
+    } else {
+      // Regular users can't access assignments API
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 403 }
+      );
     }
-    
-    // If filtering by helpdesk ID
-    if (helpdeskId) {
-      whereClause.helpdesk_id = helpdeskId;
-    }
-    
-    // Regular users can only see their own assignments
-    if (requestingUser.role === 'user') {
-      whereClause.user_id = requestingUser.id;
-    }
-    
-    // Helpdesk users can only see assignments where they are the helpdesk
-    else if (requestingUser.role === 'helpdesk') {
-      whereClause.helpdesk_id = requestingUser.id;
-    }
-    
-    // Get assignments based on filters
-    const assignments = await Assignment.findAll({
-      where: whereClause,
-      include: [
-        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role'] },
-        { model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] },
-        { model: User, as: 'admin', attributes: ['id', 'name', 'email'] }
-      ]
-    });
     
     return NextResponse.json(assignments);
   } catch (error) {
@@ -80,7 +80,7 @@ export async function GET(request) {
   }
 }
 
-// Create or update an assignment
+// Create or update ticket assignment
 export async function POST(request) {
   try {
     // Check authentication
@@ -95,91 +95,89 @@ export async function POST(request) {
     // Connect to database
     await connectToDatabase();
     
-    // Verify admin role
-    const admin = await User.findByPk(session.user.id);
-    if (!admin || admin.role !== 'admin') {
+    const user = await User.findByPk(session.user.id);
+    if (!user || user.role !== 'admin') {
       return NextResponse.json(
-        { message: "Only admins can create/update assignments" },
+        { message: "Only admins can assign tickets" },
         { status: 403 }
       );
     }
-
-    const data = await request.json();
-    const { userId, helpdeskId } = data;
     
-    if (!userId || !helpdeskId) {
+    const { ticketId, helpdeskId } = await request.json();
+    
+    if (!ticketId || !helpdeskId) {
       return NextResponse.json(
-        { message: "User ID and helpdesk ID are required" },
+        { message: "Ticket ID and helpdesk ID are required" },
         { status: 400 }
       );
     }
     
-    // Check if user exists and is a regular user
-    const user = await User.findByPk(userId);
-    if (!user) {
+    // Verify ticket exists
+    const ticket = await FormSubmission.findByPk(ticketId);
+    if (!ticket) {
       return NextResponse.json(
-        { message: "User not found" },
+        { message: "Ticket not found" },
         { status: 404 }
       );
     }
     
-    if (user.role !== 'user') {
+    // Verify helpdesk user exists and has helpdesk role
+    const helpdeskUser = await User.findByPk(helpdeskId);
+    if (!helpdeskUser) {
+      console.error(`Helpdesk user with ID ${helpdeskId} not found`);
       return NextResponse.json(
-        { message: "Can only assign regular users to helpdesk" },
+        { message: "Helpdesk user not found", helpdeskId },
         { status: 400 }
       );
     }
     
-    // Check if helpdesk exists and is a helpdesk user
-    const helpdesk = await User.findByPk(helpdeskId);
-    if (!helpdesk) {
+    if (helpdeskUser.role !== 'helpdesk') {
+      console.error(`User ${helpdeskId} (${helpdeskUser.name}) has role ${helpdeskUser.role}, expected 'helpdesk'`);
       return NextResponse.json(
-        { message: "Helpdesk user not found" },
-        { status: 404 }
-      );
-    }
-    
-    if (helpdesk.role !== 'helpdesk') {
-      return NextResponse.json(
-        { message: "Can only assign to helpdesk users" },
+        { message: "Invalid helpdesk user - user exists but doesn't have helpdesk role", 
+          userRole: helpdeskUser.role },
         { status: 400 }
       );
     }
+    
+    console.log(`Assigning ticket ${ticketId} to helpdesk ${helpdeskId} (${helpdeskUser.name})`);
     
     // Check if assignment already exists
-    let assignment = await Assignment.findOne({
-      where: { user_id: userId }
+    const existingAssignment = await TicketAssignment.findOne({
+      where: { ticket_id: ticketId }
     });
     
-    if (assignment) {
+    if (existingAssignment) {
       // Update existing assignment
-      assignment.helpdesk_id = helpdeskId;
-      assignment.assigned_by = admin.id;
-      await assignment.save();
+      existingAssignment.helpdesk_id = helpdeskId;
+      await existingAssignment.save();
+      
+      return NextResponse.json({
+        message: "Ticket assignment updated successfully",
+        assignment: existingAssignment
+      });
     } else {
       // Create new assignment
-      assignment = await Assignment.create({
-        user_id: userId,
-        helpdesk_id: helpdeskId,
-        assigned_by: admin.id
+      const newAssignment = await TicketAssignment.create({
+        ticket_id: ticketId,
+        helpdesk_id: helpdeskId
       });
+      
+      return NextResponse.json({
+        message: "Ticket assigned successfully",
+        assignment: newAssignment
+      }, { status: 201 });
     }
-    
-    // Return successful response with created/updated assignment
-    return NextResponse.json(
-      { message: "Assignment created/updated successfully", assignment },
-      { status: 201 }
-    );
   } catch (error) {
-    console.error("Error creating/updating assignment:", error);
+    console.error("Error assigning ticket:", error);
     return NextResponse.json(
-      { message: "Error creating/updating assignment", error: error.message },
+      { message: "Error assigning ticket", error: error.message },
       { status: 500 }
     );
   }
 }
 
-// Delete an assignment
+// Delete ticket assignment
 export async function DELETE(request) {
   try {
     // Check authentication
@@ -190,33 +188,32 @@ export async function DELETE(request) {
         { status: 401 }
       );
     }
-
+    
     // Connect to database
     await connectToDatabase();
     
-    // Verify admin role
-    const admin = await User.findByPk(session.user.id);
-    if (!admin || admin.role !== 'admin') {
+    const user = await User.findByPk(session.user.id);
+    if (!user || user.role !== 'admin') {
       return NextResponse.json(
-        { message: "Only admins can delete assignments" },
+        { message: "Only admins can remove assignments" },
         { status: 403 }
       );
     }
     
-    // Get query parameters
+    // Get ticket ID from URL params
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const ticketId = searchParams.get('ticketId');
     
-    if (!userId) {
+    if (!ticketId) {
       return NextResponse.json(
-        { message: "User ID is required" },
+        { message: "Ticket ID is required" },
         { status: 400 }
       );
     }
     
-    // Find the assignment
-    const assignment = await Assignment.findOne({
-      where: { user_id: userId }
+    // Find and delete the assignment
+    const assignment = await TicketAssignment.findOne({
+      where: { ticket_id: ticketId }
     });
     
     if (!assignment) {
@@ -226,14 +223,15 @@ export async function DELETE(request) {
       );
     }
     
-    // Delete the assignment
     await assignment.destroy();
     
-    return NextResponse.json({ message: "Assignment deleted successfully" });
+    return NextResponse.json({
+      message: "Assignment removed successfully"
+    });
   } catch (error) {
-    console.error("Error deleting assignment:", error);
+    console.error("Error removing assignment:", error);
     return NextResponse.json(
-      { message: "Error deleting assignment", error: error.message },
+      { message: "Error removing assignment", error: error.message },
       { status: 500 }
     );
   }

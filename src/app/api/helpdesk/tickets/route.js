@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mariadb/connect';
-import { User, FormSubmission, FormTemplate, Assignment } from '@/lib/mariadb/models';
-import { Op } from 'sequelize';
+import { User, FormSubmission, FormTemplate, TicketAssignment } from '@/lib/mariadb/models';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,34 +36,38 @@ export async function GET(request) {
       );
     }
     
-    // For helpdesk users, get assigned users first
-    let userIds = [];
-    if (user.role === 'helpdesk') {
-      const assignments = await Assignment.findAll({
-        where: { helpdesk_id: user.id }
+    let tickets;
+    
+    if (user.role === 'admin') {
+      // Admins can see all tickets
+      tickets = await FormSubmission.findAll({
+        include: [
+          { model: FormTemplate, as: 'template' },
+          { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'avatar'] },
+          { 
+            model: TicketAssignment, 
+            as: 'assignment',
+            include: [{ model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] }]
+          }
+        ],
+        order: [['created_at', 'DESC']]
       });
-      
-      userIds = assignments.map(a => a.user_id);
-      
-      if (userIds.length === 0) {
-        // No assigned users
-        return NextResponse.json([]);
-      }
+    } else {
+      // Helpdesk users only see tickets assigned to them
+      tickets = await FormSubmission.findAll({
+        include: [
+          { model: FormTemplate, as: 'template' },
+          { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'avatar'] },
+          { 
+            model: TicketAssignment, 
+            as: 'assignment',
+            where: { helpdesk_id: user.id },
+            required: true
+          }
+        ],
+        order: [['created_at', 'DESC']]
+      });
     }
-    
-    // Get tickets - for helpdesk only from assigned users, for admin all tickets
-    const whereClause = user.role === 'helpdesk' 
-      ? { submitted_by: { [Op.in]: userIds } }
-      : {};
-    
-    const tickets = await FormSubmission.findAll({
-      where: whereClause,
-      include: [
-        { model: FormTemplate, as: 'template' },
-        { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'avatar'] }
-      ],
-      order: [['created_at', 'DESC']]
-    });
     
     return NextResponse.json(tickets);
   } catch (error) {

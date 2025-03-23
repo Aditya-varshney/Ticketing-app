@@ -69,6 +69,30 @@ export default function UserDashboard() {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   
+  // Store the start time to measure loading duration
+  useEffect(() => {
+    window.startTime = Date.now();
+  }, []);
+  
+  // Add safety timeout to prevent infinite loading
+  useEffect(() => {
+    console.log("Auth status:", { loading, isAuthenticated, user: user?.id });
+    
+    // Safety timeout to prevent user from being stuck in loading
+    const safetyTimeout = setTimeout(() => {
+      if (loadingTickets) {
+        console.log("Safety timeout triggered - forcing loadingTickets to false");
+        setLoadingTickets(false);
+      }
+      if (loadingHelpdesk) {
+        console.log("Safety timeout triggered - forcing loadingHelpdesk to false");
+        setLoadingHelpdesk(false);
+      }
+    }, 5000); // 5 seconds timeout
+    
+    return () => clearTimeout(safetyTimeout);
+  }, [loading, isAuthenticated, user, loadingTickets, loadingHelpdesk]);
+  
   // Sorting state
   const [sortField, setSortField] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -82,8 +106,10 @@ export default function UserDashboard() {
   useEffect(() => {
     // Check if user is authenticated and has the correct role
     if (!loading && !isAuthenticated) {
+      console.log("User not authenticated, redirecting to login");
       router.replace('/login');
     } else if (!loading && user?.role !== 'user') {
+      console.log(`User has incorrect role: ${user?.role}, redirecting`);
       router.replace(`/${user?.role}`);
     }
   }, [loading, isAuthenticated, user, router]);
@@ -93,53 +119,79 @@ export default function UserDashboard() {
     const fetchTickets = async () => {
       if (!isAuthenticated) return;
       
+      console.log("Fetching tickets...");
       try {
         setLoadingTickets(true);
-        const response = await fetch('/api/forms/submissions');
+        const response = await fetch('/api/forms/submissions', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
-          throw new Error('Failed to fetch tickets');
+          const errorText = await response.text();
+          console.error("Error response from tickets API:", errorText);
+          console.error("Status code:", response.status);
+          throw new Error(`Failed to fetch tickets: ${response.status} - ${errorText.substring(0, 100)}`);
         }
         
         const data = await response.json();
+        console.log(`Fetched ${data.length} tickets`);
         setTickets(data);
       } catch (error) {
         console.error('Error fetching tickets:', error);
       } finally {
         setLoadingTickets(false);
+        console.log("Ticket loading completed");
       }
     };
     
     fetchTickets();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
   
-  // Check if user has an assigned helpdesk
+  // Check if selected ticket has an assigned helpdesk
   useEffect(() => {
     const fetchHelpdesk = async () => {
-      if (!isAuthenticated) return;
+      if (!isAuthenticated || !selectedTicket) return;
       
+      console.log("Fetching helpdesk assignment for ticket:", selectedTicket.id);
       try {
         setLoadingHelpdesk(true);
-        const response = await fetch('/api/chat');
+        const response = await fetch(`/api/assignments?ticketId=${selectedTicket.id}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
-          throw new Error('Failed to fetch helpdesk assignment');
+          const errorText = await response.text();
+          console.error("Error response from assignments API:", errorText);
+          console.error("Status code:", response.status);
+          throw new Error(`Failed to fetch ticket assignment: ${response.status} - ${errorText.substring(0, 100)}`);
         }
         
-        const contacts = await response.json();
-        // If there's a helpdesk assigned, it will be in the contacts list
-        const helpdesk = contacts.find(contact => contact.role === 'helpdesk');
-        setHelpdeskAssigned(helpdesk || null);
+        const assignment = await response.json();
+        console.log("Assignment data:", assignment);
+        
+        // If there's a helpdesk assigned to this ticket
+        if (assignment && assignment.helpdesk) {
+          setHelpdeskAssigned(assignment.helpdesk);
+          console.log("Helpdesk assigned:", assignment.helpdesk.id);
+        } else {
+          setHelpdeskAssigned(null);
+          console.log("No helpdesk assigned to this ticket");
+        }
       } catch (error) {
-        console.error('Error fetching helpdesk:', error);
+        console.error('Error fetching ticket helpdesk assignment:', error);
         setHelpdeskAssigned(null);
       } finally {
         setLoadingHelpdesk(false);
+        console.log("Helpdesk loading completed");
       }
     };
     
     fetchHelpdesk();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, selectedTicket?.id]);
   
   // Fetch messages when a ticket is selected and helpdesk is assigned
   useEffect(() => {
@@ -148,10 +200,17 @@ export default function UserDashboard() {
       
       try {
         setLoadingMessages(true);
-        const response = await fetch(`/api/chat/messages?userId=${helpdeskAssigned.id}`);
+        const response = await fetch(`/api/chat/messages?userId=${helpdeskAssigned.id}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
-          throw new Error('Failed to fetch messages');
+          const errorText = await response.text();
+          console.error("Error response from messages API:", errorText);
+          console.error("Status code:", response.status);
+          throw new Error(`Failed to fetch messages: ${response.status} - ${errorText.substring(0, 100)}`);
         }
         
         const data = await response.json();
@@ -166,7 +225,7 @@ export default function UserDashboard() {
     if (selectedTicket && helpdeskAssigned) {
       fetchMessages();
     }
-  }, [selectedTicket, helpdeskAssigned]);
+  }, [selectedTicket?.id, helpdeskAssigned?.id]);
   
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -225,6 +284,7 @@ export default function UserDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
           content: newMessage,
@@ -233,12 +293,27 @@ export default function UserDashboard() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorText = await response.text();
+        console.error("Error response from send message API:", errorText);
+        console.error("Status code:", response.status);
+        throw new Error(`Failed to send message: ${response.status} - ${errorText.substring(0, 100)}`);
       }
       
       setNewMessage('');
       // Fetch latest messages
-      const messagesResponse = await fetch(`/api/chat/messages?userId=${helpdeskAssigned.id}`);
+      const messagesResponse = await fetch(`/api/chat/messages?userId=${helpdeskAssigned.id}`, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!messagesResponse.ok) {
+        const errorText = await messagesResponse.text();
+        console.error("Error refreshing messages:", errorText);
+        console.error("Status code:", messagesResponse.status);
+        throw new Error(`Failed to refresh messages: ${messagesResponse.status} - ${errorText.substring(0, 100)}`);
+      }
+      
       if (messagesResponse.ok) {
         const data = await messagesResponse.json();
         setMessages(data);
@@ -261,10 +336,31 @@ export default function UserDashboard() {
     }).format(date);
   };
 
+  // Modify the loading condition to handle authentication issues better
   if (loading || loadingTickets || loadingHelpdesk) {
+    console.log("Loading state:", { authLoading: loading, loadingTickets, loadingHelpdesk });
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="h-screen flex items-center justify-center flex-col">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        
+        {/* Add a button that forces authentication to complete after 8 seconds */}
+        {Date.now() - window.startTime > 8000 && (
+          <div className="mt-6 text-center">
+            <p className="text-gray-600 dark:text-gray-300 mb-2">
+              Loading is taking longer than expected...
+            </p>
+            <button 
+              onClick={() => {
+                console.log("Manual reset of loading states");
+                setLoadingTickets(false);
+                setLoadingHelpdesk(false);
+              }}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            >
+              Continue Anyway
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -333,8 +429,8 @@ export default function UserDashboard() {
                   <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636a9 9 0 010 12.728m-3.536-3.536a5 5 0 010-7.072m3.536 9.9a9 9 0 00-12.728 0m3.536-3.536a5 5 0 010-7.072M5.636 18.364a9 9 0 010-12.728m3.536 3.536a5 5 0 010 7.072" />
                   </svg>
-                  <p>No helpdesk assigned to your account yet</p>
-                  <p className="mt-2 text-sm">An admin needs to assign a helpdesk to assist you</p>
+                  <p>No helpdesk assigned to this ticket yet</p>
+                  <p className="mt-2 text-sm">An admin needs to assign a helpdesk to assist with this ticket</p>
                 </div>
               </div>
             ) : (

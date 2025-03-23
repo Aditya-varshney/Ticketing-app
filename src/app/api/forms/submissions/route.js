@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 // Fix import paths to match your project structure
 import { connectToDatabase } from '@/lib/mariadb/connect';
-import { User, FormSubmission, FormTemplate, Assignment } from '@/lib/mariadb/models';
+import { User, FormSubmission, FormTemplate, TicketAssignment } from '@/lib/mariadb/models';
 import { Op } from 'sequelize';
 
 // Mark this route as dynamic
@@ -302,18 +302,18 @@ export async function PUT(request) {
       );
     }
     
-    // For helpdesk users, verify they are assigned to the user who submitted this ticket
+    // For helpdesk users, verify they are assigned to this ticket
     if (user.role === 'helpdesk') {
-      const assignment = await Assignment.findOne({
+      const assignment = await TicketAssignment.findOne({
         where: {
-          user_id: submission.submitted_by,
+          ticket_id: submissionId,
           helpdesk_id: user.id
         }
       });
       
       if (!assignment) {
         return NextResponse.json(
-          { message: "You are not assigned to this user" },
+          { message: "You are not assigned to this ticket" },
           { status: 403 }
         );
       }
