@@ -67,13 +67,14 @@ export const connectToDatabase = async () => {
       dialectModule: require('mysql2'),
       dialectOptions: {
         timezone: 'Etc/GMT0',
+        connectTimeout: 10000 // 10 seconds
       },
-      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+      logging: false, // Disable logging in production and development
       pool: {
-        max: 10,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
+        max: 15, // Increase from 10 to 15
+        min: 2, // Increase from 0 to 2 to keep connections ready
+        acquire: 15000, // Reduce from 30000 to 15000
+        idle: 5000 // Reduce from 10000 to 5000
       }
     });
     

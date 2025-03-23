@@ -17,32 +17,28 @@ export const authOptions = {
       },
       async authorize(credentials) {
         try {
-          console.log("NextAuth: Authorization attempt", { email: credentials?.email });
-          
           if (!credentials?.email || !credentials?.password) {
-            console.error("NextAuth: Email and password are required");
             throw new Error("Email and password are required");
           }
           
           await connectToDatabase();
-          console.log("NextAuth: Database connected");
           
-          const user = await User.findOne({ where: { email: credentials.email } });
+          // Optimize the query by selecting only required fields
+          const user = await User.findOne({ 
+            where: { email: credentials.email },
+            attributes: ['id', 'name', 'email', 'password', 'role', 'avatar']
+          });
           
           if (!user) {
-            console.error("NextAuth: No user found with this email");
             throw new Error("No user found with this email");
           }
           
-          console.log("NextAuth: User found, verifying password");
           const isPasswordValid = await compare(credentials.password, user.password);
           
           if (!isPasswordValid) {
-            console.error("NextAuth: Invalid password");
             throw new Error("Invalid password");
           }
           
-          console.log("NextAuth: Authentication successful", { id: user.id, role: user.role });
           return {
             id: user.id,
             name: user.name,
@@ -82,9 +78,10 @@ export const authOptions = {
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 1 day
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
+  debug: false, // Disable debug mode even in development
 };
 
 const handler = NextAuth(authOptions);

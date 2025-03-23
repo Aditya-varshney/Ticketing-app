@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,7 @@ export default function Login() {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [startTime, setStartTime] = useState(null);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -22,6 +23,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setStartTime(Date.now());
 
     if (!credentials.email || !credentials.password) {
       setError('Email and password are required');
@@ -31,13 +33,23 @@ export default function Login() {
 
     try {
       await login(credentials);
-      router.push('/'); // Redirect to home which will handle role-based redirection
+      // Don't redirect here, let the AuthContext handle it
     } catch (error) {
       setError(error.message || 'Failed to login. Please check your credentials.');
-    } finally {
       setLoading(false);
     }
   };
+
+  // Safety timeout to prevent users from being stuck in loading state
+  useEffect(() => {
+    let timeoutId;
+    if (loading) {
+      timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 8000); // 8 seconds max login time
+    }
+    return () => clearTimeout(timeoutId);
+  }, [loading]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">

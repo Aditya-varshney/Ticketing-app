@@ -1,7 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import io from 'socket.io-client';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 
 const ChatContext = createContext();
@@ -15,57 +14,112 @@ export function ChatProvider({ children }) {
   const [userTyping, setUserTyping] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const socketInitialized = useRef(false);
+  const socketIORef = useRef(null);
 
-  // Initialize socket connection
+  // Initialize socket connection - with lazy loading
   useEffect(() => {
-    if (session?.user?.id) {
-      const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
-      setSocket(newSocket);
-      
-      return () => {
-        newSocket.disconnect();
-      };
-    }
+    if (!session?.user?.id) return;
+    
+    // Only initialize socket when user is in a dashboard page and needs chat
+    const shouldInitSocket = 
+      (window.location.pathname.includes('/admin') || 
+       window.location.pathname.includes('/helpdesk') || 
+       window.location.pathname.includes('/user'));
+       
+    if (!shouldInitSocket || socketInitialized.current) return;
+
+    // Lazy load socket.io-client
+    const initSocketConnection = async () => {
+      try {
+        if (!socketIORef.current) {
+          // Dynamically import socket.io-client only when needed
+          const io = (await import('socket.io-client')).default;
+          socketIORef.current = io;
+        }
+        
+        const socketInstance = socketIORef.current(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000', {
+          transports: ['websocket'],
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          timeout: 10000
+        });
+        
+        setSocket(socketInstance);
+        socketInitialized.current = true;
+        
+        // Clean up function
+        return () => {
+          if (socketInstance) {
+            socketInstance.disconnect();
+            socketInitialized.current = false;
+          }
+        };
+      } catch (err) {
+        console.error('Failed to initialize socket:', err);
+        return () => {};
+      }
+    };
+
+    // Delay socket connection based on user role
+    // For regular users, delay more to prioritize UI rendering
+    const delayTime = session.user.role === 'user' ? 800 : 300;
+    
+    // Delay socket connection slightly to prioritize UI rendering
+    const timeoutId = setTimeout(() => {
+      initSocketConnection();
+    }, delayTime);
+    
+    return () => clearTimeout(timeoutId);
   }, [session]);
   
-  // Register user with socket server once connected
+  // Set up socket event listeners
   useEffect(() => {
-    if (socket && session?.user?.id) {
-      socket.emit('register', session.user.id);
-      
-      socket.on('receive-message', (message) => {
-        if (currentChat && 
-            ((message.sender === currentChat.id) || 
-             (message.receiver === currentChat.id))) {
-          setMessages((prevMessages) => [...prevMessages, message]);
-        }
-      });
-      
-      socket.on('user-typing', ({ senderId }) => {
-        if (currentChat && senderId === currentChat.id) {
-          setUserTyping(true);
-        }
-      });
-      
-      socket.on('user-stop-typing', () => {
-        setUserTyping(false);
-      });
+    if (!socket || !session?.user?.id) return;
+    
+    // Register with socket server
+    socket.emit('register', session.user.id);
+    
+    function handleReceiveMessage(message) {
+      if (currentChat && 
+          ((message.sender === currentChat.id) || 
+           (message.receiver === currentChat.id))) {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
     }
     
-    return () => {
-      if (socket) {
-        socket.off('receive-message');
-        socket.off('user-typing');
-        socket.off('user-stop-typing');
+    function handleUserTyping({ senderId }) {
+      if (currentChat && senderId === currentChat.id) {
+        setUserTyping(true);
       }
+    }
+    
+    function handleUserStopTyping() {
+      setUserTyping(false);
+    }
+    
+    // Add event listeners
+    socket.on('receive-message', handleReceiveMessage);
+    socket.on('user-typing', handleUserTyping);
+    socket.on('user-stop-typing', handleUserStopTyping);
+    
+    // Clean up function
+    return () => {
+      socket.off('receive-message', handleReceiveMessage);
+      socket.off('user-typing', handleUserTyping);
+      socket.off('user-stop-typing', handleUserStopTyping);
     };
   }, [socket, currentChat, session]);
 
-  // Fetch messages when current chat changes
+  // Fetch messages when current chat changes - with debounce
   useEffect(() => {
-    if (currentChat && session?.user?.id) {
+    if (!currentChat || !session?.user?.id) return;
+    
+    const fetchTimeout = setTimeout(() => {
       fetchMessages(currentChat.id);
-    }
+    }, 100);
+    
+    return () => clearTimeout(fetchTimeout);
   }, [currentChat, session]);
 
   const fetchMessages = async (receiverId) => {
@@ -73,7 +127,11 @@ export function ChatProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/chat/messages?receiverId=${receiverId}`);
+      const response = await fetch(`/api/chat/messages?receiverId=${receiverId}`, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch messages');

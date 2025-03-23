@@ -68,10 +68,11 @@ export default function UserDashboard() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [startTime, setStartTime] = useState(null);
   
-  // Store the start time to measure loading duration
+  // Store the start time to measure loading duration - client-side only
   useEffect(() => {
-    window.startTime = Date.now();
+    setStartTime(Date.now());
   }, []);
   
   // Add safety timeout to prevent infinite loading
@@ -138,6 +139,11 @@ export default function UserDashboard() {
         const data = await response.json();
         console.log(`Fetched ${data.length} tickets`);
         setTickets(data);
+        
+        // Only fetch helpdesk assignments after tickets are loaded (staggered loading)
+        if (selectedTicket) {
+          setTimeout(() => fetchHelpdeskAssignment(selectedTicket.id), 100);
+        }
       } catch (error) {
         console.error('Error fetching tickets:', error);
       } finally {
@@ -344,22 +350,16 @@ export default function UserDashboard() {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
         
         {/* Add a button that forces authentication to complete after 8 seconds */}
-        {Date.now() - window.startTime > 8000 && (
-          <div className="mt-6 text-center">
-            <p className="text-gray-600 dark:text-gray-300 mb-2">
-              Loading is taking longer than expected...
-            </p>
-            <button 
-              onClick={() => {
-                console.log("Manual reset of loading states");
-                setLoadingTickets(false);
-                setLoadingHelpdesk(false);
-              }}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-            >
-              Continue Anyway
-            </button>
-          </div>
+        {startTime && Date.now() - startTime > 8000 && (
+          <button 
+            onClick={() => {
+              setLoadingTickets(false);
+              setLoadingHelpdesk(false);
+            }}
+            className="px-4 py-2 mt-2 bg-blue-500 text-white rounded-md"
+          >
+            Continue anyway
+          </button>
         )}
       </div>
     );
@@ -372,7 +372,7 @@ export default function UserDashboard() {
           <div>
             <h1 className="text-2xl font-bold mb-1">User Dashboard</h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Welcome back, {user?.name}!
+              {user?.name ? `Welcome back, ${user.name}!` : 'Loading user information...'}
             </p>
           </div>
           <div className="flex items-center space-x-3">
