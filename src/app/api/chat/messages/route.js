@@ -23,10 +23,11 @@ export async function GET(request) {
     // Get the user ID from query parameters
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const ticketId = searchParams.get('ticketId');
     
-    if (!userId) {
+    if (!userId && !ticketId) {
       return NextResponse.json(
-        { message: "User ID is required" },
+        { message: "Either userId or ticketId is required" },
         { status: 400 }
       );
     }
@@ -34,14 +35,37 @@ export async function GET(request) {
     // Connect to database
     await connectToDatabase();
 
-    // Get messages between the two users
-    const messages = await Message.findAll({
-      where: {
+    // Get the current user
+    const user = await User.findByPk(session.user.id);
+    if (!user) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Build the where clause
+    let whereClause = {};
+    
+    // If ticketId is provided, that's our primary filter
+    if (ticketId) {
+      whereClause.ticket_id = ticketId;
+    } 
+    // If only userId is provided but no ticketId
+    else if (userId) {
+      whereClause = {
         [Op.or]: [
           { sender: session.user.id, receiver: userId },
           { sender: userId, receiver: session.user.id }
         ]
-      },
+      };
+    }
+
+    console.log("Using where clause:", JSON.stringify(whereClause));
+
+    // Get messages between the two users
+    const messages = await Message.findAll({
+      where: whereClause,
       include: [
         { model: User, as: 'senderUser', attributes: ['id', 'name', 'email', 'role'] },
         { model: User, as: 'receiverUser', attributes: ['id', 'name', 'email', 'role'] }
@@ -73,7 +97,7 @@ export async function POST(request) {
 
     // Parse request body
     const body = await request.json();
-    const { content, receiverId } = body;
+    const { content, receiverId, ticketId } = body;
     
     if (!content || !receiverId) {
       return NextResponse.json(
@@ -90,7 +114,8 @@ export async function POST(request) {
       sender: session.user.id,
       receiver: receiverId,
       content,
-      read: false
+      read: false,
+      ticket_id: ticketId || null
     });
 
     return NextResponse.json(message);

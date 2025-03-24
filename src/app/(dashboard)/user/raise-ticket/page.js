@@ -98,30 +98,24 @@ export default function RaiseTicketPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {ticketTypes.map(template => (
-              <div 
-                key={template.id} 
-                className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:border-blue-500 hover:shadow-md transition-all cursor-pointer"
-                onClick={() => handleSelectTemplate(template.id)}
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Select Ticket Type
+              </label>
+              <select
+                onChange={(e) => handleSelectTemplate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                defaultValue=""
               >
-                <h3 className="text-xl font-medium mb-3">{template.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  Click to fill this form and submit your request
-                </p>
-                <div className="mt-6">
-                  <Button 
-                    className="w-full py-3 text-base font-medium"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectTemplate(template.id);
-                    }}
-                  >
-                    Fill Form
-                  </Button>
-                </div>
-              </div>
-            ))}
+                <option value="" disabled>Choose a ticket type...</option>
+                {ticketTypes.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         )}
       </div>

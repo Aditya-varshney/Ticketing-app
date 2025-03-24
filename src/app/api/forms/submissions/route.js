@@ -45,7 +45,14 @@ export async function GET(request) {
       const submission = await FormSubmission.findByPk(submissionId, {
         include: [
           { model: FormTemplate, as: 'template' },
-          { model: User, as: 'submitter', attributes: ['id', 'name', 'email'] }
+          { model: User, as: 'submitter', attributes: ['id', 'name', 'email'] },
+          { 
+            model: TicketAssignment, 
+            as: 'assignment',
+            include: [
+              { model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] }
+            ] 
+          }
         ]
       });
       
@@ -120,23 +127,10 @@ export async function POST(request) {
     await connectToDatabase();
     console.log("Database connected");
     
-    let data;
-    try {
-      data = await request.json();
-      console.log("Request data:", {
-        formTemplateId: data.formTemplateId,
-        formDataKeys: data.formData ? Object.keys(data.formData) : null
-      });
-    } catch (parseError) {
-      console.error("Error parsing request body:", parseError);
-      return NextResponse.json(
-        { message: "Invalid request body", error: parseError.message },
-        { status: 400 }
-      );
-    }
-    
-    const { formTemplateId, formData } = data;
-    
+    // Extract data from request
+    const data = await request.json();
+    const { formTemplateId, formData, priority } = data;
+
     if (!formTemplateId || !formData) {
       return NextResponse.json(
         { message: "Form template ID and form data are required" },
@@ -144,51 +138,42 @@ export async function POST(request) {
       );
     }
     
-    // Check if the form template exists
-    const template = await FormTemplate.findByPk(formTemplateId);
-    if (!template) {
+    // Find the form template
+    const formTemplate = await FormTemplate.findByPk(formTemplateId);
+
+    // Check if this is a custom ticket type
+    const isCustomTicket = formTemplateId === 'custom-ticket';
+
+    // If not a custom ticket and template doesn't exist, return error
+    if (!isCustomTicket && !formTemplate) {
       return NextResponse.json(
-        { message: "Form template not found", id: formTemplateId },
+        { message: "Form template not found" },
         { status: 404 }
       );
     }
-    console.log("Template found:", template.name);
-    
-    // Alter table to add 'pending' if it doesn't exist
-    try {
-      const sequelize = FormSubmission.sequelize;
-      await sequelize.query(`
-        ALTER TABLE form_submissions MODIFY priority 
-        ENUM('pending', 'low', 'medium', 'high', 'urgent') DEFAULT 'pending';
-      `).catch(err => {
-        // Ignore errors - this is just a safeguard
-        console.log("Note: Could not alter priority enum, might already be updated:", err.message);
-      });
-    } catch (alterError) {
-      console.log("Could not alter table:", alterError.message);
-    }
-    
-    // Make sure form data is properly stringified
-    let formDataString;
-    try {
-      formDataString = typeof formData === 'string' ? formData : JSON.stringify(formData);
-    } catch (error) {
+
+    // Find the submitter (if a specific submitter is needed)
+    const submitter = await User.findByPk(session.user.id);
+    if (!submitter) {
       return NextResponse.json(
-        { message: "Invalid form data format", error: error.message },
-        { status: 400 }
+        { message: "User not found" },
+        { status: 404 }
       );
     }
-    
-    // Try direct query if model approach fails
+
+    // Create the submission
+    // Stringify form data if it's an object
+    const formDataString = typeof formData === 'object' ? JSON.stringify(formData) : formData;
+
     try {
-      // Create submission
-      console.log("Creating form submission");
+      // Use a custom template ID for custom tickets
+      const templateIdToUse = isCustomTicket ? 'custom-ticket-template' : formTemplateId;
+      
       const submission = await FormSubmission.create({
-        form_template_id: formTemplateId,
+        form_template_id: templateIdToUse,
         submitted_by: session.user.id,
         form_data: formDataString,
-        priority: 'pending', // Default pending status for admin to set
-        status: 'open'
+        priority: priority || 'pending' // Use provided priority or default to pending
       });
       
       console.log("Submission created successfully:", submission.id);
@@ -211,11 +196,11 @@ export async function POST(request) {
       `, {
         replacements: [
           uuid(),
-          formTemplateId,
+          templateIdToUse,
           session.user.id,
           formDataString,
           'open',
-          'pending'
+          priority || 'pending'
         ]
       });
       

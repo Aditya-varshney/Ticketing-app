@@ -32,9 +32,9 @@ export default function CreateTicketPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold mb-2">Create New Ticket</h1>
+            <h1 className="text-2xl font-bold mb-2">Manage Ticket Templates</h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Create a new support ticket for users
+              Create or edit ticket templates for the system
             </p>
           </div>
           <div>

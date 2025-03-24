@@ -5,56 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
-
-// Status badge component
-const StatusBadge = ({ status }) => {
-  const getStatusColor = () => {
-    switch (status) {
-      case 'open':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'in_progress':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-      case 'resolved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-      case 'closed':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-    }
-  };
-
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor()}`}>
-      {status === 'in_progress' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
-};
-
-// Priority badge component
-const PriorityBadge = ({ priority }) => {
-  const getPriorityColor = () => {
-    switch (priority) {
-      case 'pending':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      case 'low':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-      case 'medium':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'high':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-      case 'urgent':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-    }
-  };
-
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor()}`}>
-      {priority === 'pending' ? 'Pending' : priority.charAt(0).toUpperCase() + priority.slice(1)}
-    </span>
-  );
-};
+import StatusBadge from '@/components/ui/StatusBadge';
+import PriorityBadge from '@/components/ui/PriorityBadge';
 
 export default function UserDashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -202,11 +154,12 @@ export default function UserDashboard() {
   // Fetch messages when a ticket is selected and helpdesk is assigned
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!selectedTicket || !helpdeskAssigned) return;
+      if (!selectedTicket) return;
       
       try {
         setLoadingMessages(true);
-        const response = await fetch(`/api/chat/messages?userId=${helpdeskAssigned.id}`, {
+        // Fetch messages for the selected ticket from any helpdesk
+        const response = await fetch(`/api/chat/messages?userId=${user.id}&ticketId=${selectedTicket.id}`, {
           headers: {
             'Cache-Control': 'no-cache'
           }
@@ -228,10 +181,10 @@ export default function UserDashboard() {
       }
     };
     
-    if (selectedTicket && helpdeskAssigned) {
+    if (selectedTicket) {
       fetchMessages();
     }
-  }, [selectedTicket?.id, helpdeskAssigned?.id]);
+  }, [selectedTicket?.id, user?.id]);
   
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -280,9 +233,10 @@ export default function UserDashboard() {
     });
   };
   
+  // Handle sending a message
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !helpdeskAssigned) return;
+    if (!newMessage.trim() || !helpdeskAssigned || !selectedTicket) return;
     
     try {
       setSendingMessage(true);
@@ -294,7 +248,8 @@ export default function UserDashboard() {
         },
         body: JSON.stringify({
           content: newMessage,
-          receiverId: helpdeskAssigned.id
+          receiverId: helpdeskAssigned.id,
+          ticketId: selectedTicket.id
         }),
       });
       
@@ -307,7 +262,7 @@ export default function UserDashboard() {
       
       setNewMessage('');
       // Fetch latest messages
-      const messagesResponse = await fetch(`/api/chat/messages?userId=${helpdeskAssigned.id}`, {
+      const messagesResponse = await fetch(`/api/chat/messages?userId=${user.id}&ticketId=${selectedTicket.id}`, {
         headers: {
           'Cache-Control': 'no-cache'
         }
@@ -384,13 +339,6 @@ export default function UserDashboard() {
             >
               Raise a New Ticket
             </Button>
-            <Button 
-              onClick={() => logout()}
-              variant="danger"
-              size="md"
-            >
-              Logout
-            </Button>
           </div>
         </div>
       </div>
@@ -402,11 +350,22 @@ export default function UserDashboard() {
             <div className="p-4 border-b dark:border-gray-700">
               <h2 className="text-xl font-semibold">
                 {selectedTicket ? (
-                  <div className="flex items-center">
-                    <span className="mr-2">Support Chat</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
-                      {selectedTicket.template?.name} (#{selectedTicket.id.substring(0, 8)})
-                    </span>
+                  <div className="flex flex-col">
+                    <div className="flex items-center">
+                      <span className="mr-2">Support Chat</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
+                        {selectedTicket.template?.name} (#{selectedTicket.id.substring(0, 8)})
+                      </span>
+                    </div>
+                    {helpdeskAssigned ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400 font-normal mt-1">
+                        Currently assigned to: {helpdeskAssigned.name}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 dark:text-gray-400 font-normal mt-1">
+                        Not assigned to any helpdesk yet
+                      </div>
+                    )}
                   </div>
                 ) : (
                   "Support Chat"
@@ -423,16 +382,6 @@ export default function UserDashboard() {
                   <p>Select a ticket to view the chat</p>
                 </div>
               </div>
-            ) : !helpdeskAssigned ? (
-              <div className="flex-1 flex items-center justify-center p-4">
-                <div className="text-center text-gray-500 dark:text-gray-400">
-                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636a9 9 0 010 12.728m-3.536-3.536a5 5 0 010-7.072m3.536 9.9a9 9 0 00-12.728 0m3.536-3.536a5 5 0 010-7.072M5.636 18.364a9 9 0 010-12.728m3.536 3.536a5 5 0 010 7.072" />
-                  </svg>
-                  <p>No helpdesk assigned to this ticket yet</p>
-                  <p className="mt-2 text-sm">An admin needs to assign a helpdesk to assist with this ticket</p>
-                </div>
-              </div>
             ) : (
               <>
                 <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
@@ -443,7 +392,11 @@ export default function UserDashboard() {
                   ) : messages.length === 0 ? (
                     <div className="text-center text-gray-500 dark:text-gray-400 my-8">
                       <p>No messages yet</p>
-                      <p className="text-sm">Start the conversation by sending a message</p>
+                      <p className="text-sm">
+                        {!helpdeskAssigned 
+                          ? "No helpdesk staff assigned yet. Messages will appear here once admin assigns one." 
+                          : "Start the conversation by sending a message"}
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -452,20 +405,41 @@ export default function UserDashboard() {
                           key={message.id} 
                           className={`flex ${message.sender === (user?.id || '') ? 'justify-end' : 'justify-start'}`}
                         >
-                          <div 
-                            className={`max-w-[70%] rounded-lg p-3 ${
-                              message.sender === (user?.id || '') 
-                                ? 'bg-blue-500 text-white' 
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
-                            }`}
-                          >
-                            <div className="text-sm">{message.content}</div>
+                          {message.sender !== (user?.id || '') && (
+                            <div className="flex-shrink-0 mr-2 mt-1">
+                              <Avatar 
+                                src={message.senderUser?.avatar} 
+                                alt={message.senderUser?.name || "Helpdesk"} 
+                                size="sm" 
+                              />
+                            </div>
+                          )}
+                          <div className="flex flex-col max-w-[70%]">
+                            {message.sender !== (user?.id || '') && (
+                              <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="font-semibold">{message.senderUser?.name || 'Helpdesk'}</span>
+                                <span className="ml-1">({message.senderUser?.role || 'helpdesk'})</span>
+                              </div>
+                            )}
+                            <div 
+                              className={`rounded-lg p-3 ${
+                                message.sender === (user?.id || '') 
+                                  ? 'bg-blue-500 text-white ml-auto' 
+                                  : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
+                              }`}
+                            >
+                              <div className="text-sm">{message.content}</div>
+                            </div>
                             <div className={`text-xs mt-1 ${
                               message.sender === (user?.id || '') 
-                                ? 'text-blue-100' 
+                                ? 'text-gray-500 dark:text-gray-400 text-right' 
                                 : 'text-gray-500 dark:text-gray-400'
                             }`}>
-                              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {message.sender === (user?.id || '') ? (
+                                <span>You • {new Date(message.created_at).toLocaleString()}</span>
+                              ) : (
+                                <span>{new Date(message.created_at).toLocaleString()}</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -479,14 +453,14 @@ export default function UserDashboard() {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
+                    placeholder={helpdeskAssigned ? "Type a message..." : "No helpdesk assigned yet"}
                     className="flex-1 border border-gray-300 dark:border-gray-600 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    disabled={sendingMessage}
+                    disabled={sendingMessage || !helpdeskAssigned}
                   />
                   <button
                     type="submit"
                     className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
-                    disabled={!newMessage.trim() || sendingMessage}
+                    disabled={!newMessage.trim() || sendingMessage || !helpdeskAssigned}
                   >
                     {sendingMessage ? (
                       <span className="inline-block w-5 h-5 border-t-2 border-white rounded-full animate-spin"></span>

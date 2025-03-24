@@ -31,6 +31,17 @@ async function updateAssignmentsSchema() {
     const [tables] = await connection.query('SHOW TABLES');
     const tableNames = tables.map(t => Object.values(t)[0]);
     
+    // Check if required tables exist
+    const requiredTables = ['users', 'form_submissions'];
+    const missingTables = requiredTables.filter(table => !tableNames.includes(table));
+    
+    if (missingTables.length > 0) {
+      console.log('⚠️ Required tables missing:', missingTables.join(', '));
+      console.log('Please run setup-db.js first to create all required tables.');
+      await connection.end();
+      process.exit(1);
+    }
+    
     // Check if the old assignments table exists
     if (tableNames.includes('assignments')) {
       console.log('⚠️ Old assignments table found. Migrating to ticket_assignments...');
@@ -43,6 +54,7 @@ async function updateAssignmentsSchema() {
             ticket_id VARCHAR(36) NOT NULL UNIQUE,
             helpdesk_id VARCHAR(36) NOT NULL,
             assigned_by VARCHAR(36) NOT NULL,
+            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (ticket_id) REFERENCES form_submissions(id) ON DELETE CASCADE,
@@ -64,6 +76,7 @@ async function updateAssignmentsSchema() {
           ticket_id VARCHAR(36) NOT NULL UNIQUE,
           helpdesk_id VARCHAR(36) NOT NULL,
           assigned_by VARCHAR(36) NOT NULL,
+          assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (ticket_id) REFERENCES form_submissions(id) ON DELETE CASCADE,

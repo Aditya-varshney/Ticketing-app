@@ -483,31 +483,19 @@ export default function AdminDashboard() {
             'Cache-Control': 'no-cache'
           }
         });
+        
         if (!usersResponse.ok) {
           const errorText = await usersResponse.text();
           console.error("Error response from helpdesk users API:", errorText);
           console.error("Status code:", usersResponse.status);
           throw new Error(`Failed to fetch helpdesk staff: ${usersResponse.status} - ${errorText.substring(0, 100)}`);
         }
+        
         const helpdesks = await usersResponse.json();
         console.log("Helpdesk staff fetched:", helpdesks.length);
         
-        // If no helpdesks found, try debug mode as fallback
-        if (helpdesks.length === 0) {
-          console.log("No helpdesks found, trying debug mode...");
-          const debugResponse = await fetch('/api/admin/helpdesk-users?debug=true', {
-            headers: { 'Cache-Control': 'no-cache' }
-          });
-          if (debugResponse.ok) {
-            const debugHelpdesks = await debugResponse.json();
-            console.log("DEBUG: Using test helpdesk data:", debugHelpdesks.length);
-            if (debugHelpdesks.length > 0) {
-              // Use debug data and continue with the fetch process
-              setHelpdeskStaff(debugHelpdesks);
-              return;
-            }
-          }
-        }
+        // Set helpdesk staff data
+        setHelpdeskStaff(helpdesks);
         
         // Fetch all tickets to have their data available
         const ticketsResponse = await fetch('/api/forms/submissions', {
@@ -515,59 +503,21 @@ export default function AdminDashboard() {
             'Cache-Control': 'no-cache'
           }
         });
+        
         if (!ticketsResponse.ok) {
           const errorText = await ticketsResponse.text();
           console.error("Error response from tickets API:", errorText);
-          console.error("Status code:", ticketsResponse.status);
-          throw new Error(`Failed to fetch tickets: ${ticketsResponse.status} - ${errorText.substring(0, 100)}`);
+          throw new Error(`Failed to fetch tickets: ${ticketsResponse.status}`);
         }
+        
         const tickets = await ticketsResponse.json();
-        console.log("Tickets fetched:", tickets.length);
+        setRecentTickets(tickets);
         
-        // Fetch assignments to get ticket-helpdesk mappings
-        const assignmentsResponse = await fetch('/api/assignments', {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        if (!assignmentsResponse.ok) {
-          const errorText = await assignmentsResponse.text();
-          console.error("Error response from assignments API:", errorText);
-          console.error("Status code:", assignmentsResponse.status);
-          throw new Error(`Failed to fetch assignments: ${assignmentsResponse.status} - ${errorText.substring(0, 100)}`);
-        }
-        const assignments = await assignmentsResponse.json();
-        console.log("Assignments fetched:", assignments.length);
-        
-        // Create a map of helpdesk IDs to assigned tickets
-        const helpdeskTicketsMap = {};
-        
-        // For each helpdesk, find their assigned tickets
-        helpdesks.forEach(helpdesk => {
-          // Find ticket assignments for this helpdesk
-          const helpdeskAssignments = assignments.filter(a => 
-            a.helpdesk_id === helpdesk.id
-          );
-          
-          // Get the tickets corresponding to those assignments
-          const assignedTicketIds = helpdeskAssignments.map(a => a.ticket_id);
-          const assignedTickets = tickets.filter(t => 
-            assignedTicketIds.includes(t.id)
-          );
-          
-          // Add the tickets to the helpdesk user object
-          helpdesk.assignedTickets = assignedTickets;
-        });
-        
-        // Continue with regular flow
-        setHelpdeskStaff(helpdesks);
-
-        console.log("Fetching helpdesk staff - END");
       } catch (error) {
-        console.error('Error fetching helpdesk staff:', error);
+        console.error('Error fetching helpdesk staff data:', error);
         setNotification({
           type: 'error',
-          message: 'Failed to load helpdesk staff data'
+          message: 'Failed to load helpdesk staff data: ' + error.message
         });
       } finally {
         setLoadingUsers(false);
@@ -735,6 +685,12 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center space-x-4">
               <Link 
+                href="/admin/create-ticket"
+                className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              >
+                Create new Ticket
+              </Link>
+              <Link 
                 href="/admin/ticket-forms"
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
@@ -746,12 +702,6 @@ export default function AdminDashboard() {
               >
                 All Tickets
               </Link>
-              <button
-                onClick={logout}
-                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-              >
-                Logout
-              </button>
             </div>
           </div>
         </div>

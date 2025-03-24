@@ -53,7 +53,7 @@ export async function GET(request) {
         order: [['created_at', 'DESC']]
       });
     } else {
-      // Helpdesk users only see tickets assigned to them
+      // Helpdesk users can see all tickets with assignment information
       tickets = await FormSubmission.findAll({
         include: [
           { model: FormTemplate, as: 'template' },
@@ -61,8 +61,7 @@ export async function GET(request) {
           { 
             model: TicketAssignment, 
             as: 'assignment',
-            where: { helpdesk_id: user.id },
-            required: true
+            include: [{ model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] }]
           }
         ],
         order: [['created_at', 'DESC']]

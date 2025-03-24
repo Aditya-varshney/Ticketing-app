@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
+import { useAuth } from '@/context/AuthContext';
 
 export default function TicketCreationForm() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function TicketCreationForm() {
   const mode = searchParams.get('mode');
   const isEditMode = mode === 'edit-type';
   const initialMode = mode === 'create-type' || mode === 'edit-type' ? 'create-type' : 'create-ticket';
+  const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -25,7 +27,6 @@ export default function TicketCreationForm() {
   // Ticket data for form submission
   const [ticketData, setTicketData] = useState({
     ticketType: '',
-    priority: 'medium',
     fields: {}
   });
   
@@ -46,6 +47,23 @@ export default function TicketCreationForm() {
     type: 'text',
     required: false
   });
+
+  // Handle custom ticket type input
+  const [customTicketType, setCustomTicketType] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  
+  const handleCustomTicketTypeChange = (e) => {
+    setCustomTicketType(e.target.value);
+  };
+  
+  const handleToggleCustomInput = () => {
+    setShowCustomInput(!showCustomInput);
+    if (!showCustomInput) {
+      setSelectedTicketType('');
+    } else {
+      setCustomTicketType('');
+    }
+  };
 
   // Generate a unique ID from a name
   const generateUniqueId = (name, existingIds = [], separator = '-') => {
@@ -77,6 +95,16 @@ export default function TicketCreationForm() {
   const handleTicketTypeChange = (e) => {
     const typeId = e.target.value;
     setSelectedTicketType(typeId);
+    
+    // Debug logging
+    if (typeId) {
+      const selectedType = ticketTypes.find(type => type.id === typeId);
+      console.log('Selected ticket type:', selectedType);
+      console.log('Fields type:', typeof selectedType?.fields);
+      console.log('Is fields an array?', Array.isArray(selectedType?.fields));
+      console.log('Fields content:', selectedType?.fields);
+    }
+    
     setTicketData(prev => ({
       ...prev,
       ticketType: typeId,
@@ -87,17 +115,14 @@ export default function TicketCreationForm() {
   // Handle changes to field values in the ticket form
   const handleFieldChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'priority') {
-      setTicketData(prev => ({ ...prev, priority: value }));
-    } else {
-      setTicketData(prev => ({
-        ...prev,
-        fields: {
-          ...prev.fields,
-          [name]: value
-        }
-      }));
-    }
+    
+    setTicketData(prev => ({
+      ...prev,
+      fields: {
+        ...prev.fields,
+        [name]: value
+      }
+    }));
   };
 
   // Switch to create new ticket type mode
@@ -166,10 +191,43 @@ export default function TicketCreationForm() {
           const response = await fetch('/api/forms/templates');
           if (response.ok) {
             const data = await response.json();
-            setTicketTypes(data);
+            
+            // Process the data to ensure fields are properly handled
+            const processedData = data.map(template => {
+              // Ensure fields is an array
+              let fields = [];
+              
+              // If fields exists but isn't an array, try to parse it
+              if (template.fields) {
+                if (Array.isArray(template.fields)) {
+                  fields = template.fields;
+                } else if (typeof template.fields === 'string') {
+                  try {
+                    fields = JSON.parse(template.fields);
+                  } catch (e) {
+                    console.error(`Error parsing fields for template ${template.id}:`, e);
+                  }
+                } else if (typeof template.fields === 'object') {
+                  // If it's already an object but not an array, convert it
+                  fields = Object.values(template.fields);
+                }
+              }
+              
+              // If fields is still not an array, set it to an empty array
+              if (!Array.isArray(fields)) {
+                fields = [];
+              }
+              
+              return {
+                ...template,
+                fields
+              };
+            });
+            
+            setTicketTypes(processedData);
             // Also update localStorage
-            localStorage.setItem('ticketTypes', JSON.stringify(data));
-            return data;
+            localStorage.setItem('ticketTypes', JSON.stringify(processedData));
+            return processedData;
           }
         } catch (e) {
           console.error("Error loading from API:", e);
@@ -341,8 +399,17 @@ export default function TicketCreationForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const selectedType = ticketTypes.find(type => type.id === selectedTicketType);
-    if (!selectedType) {
+    // If using a custom ticket type, validate it
+    if (showCustomInput && !customTicketType) {
+      setNotification({
+        type: 'error',
+        message: 'Please enter a name for the new ticket type'
+      });
+      return;
+    }
+    
+    // If using a pre-defined ticket type, validate it
+    if (!showCustomInput && !selectedTicketType) {
       setNotification({
         type: 'error',
         message: 'Please select a ticket type'
@@ -350,46 +417,77 @@ export default function TicketCreationForm() {
       return;
     }
     
-    // Validate required fields
-    const missingFields = selectedType.fields
-      .filter(field => field.required && !ticketData.fields[field.id])
-      .map(field => field.name);
-      
-    if (missingFields.length > 0) {
+    const selectedType = showCustomInput 
+      ? { fields: [] } // Custom type has no predefined fields
+      : ticketTypes.find(type => type.id === selectedTicketType);
+    
+    if (!showCustomInput && !selectedType) {
       setNotification({
         type: 'error',
-        message: `Please fill in required fields: ${missingFields.join(', ')}`
+        message: 'Please select a valid ticket type'
       });
       return;
+    }
+    
+    // Validate required fields for pre-defined types
+    if (!showCustomInput) {
+      const missingFields = selectedType.fields
+        .filter(field => field.required && !ticketData.fields[field.id])
+        .map(field => field.name);
+        
+      if (missingFields.length > 0) {
+        setNotification({
+          type: 'error',
+          message: `Please fill in the following required fields: ${missingFields.join(', ')}`
+        });
+        return;
+      }
     }
     
     setSubmitting(true);
     
     try {
-      // This API endpoint will need to be implemented later
-      // const response = await fetch('/api/tickets', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(ticketData),
-      // });
+      const formData = ticketData.fields;
       
-      console.log('Ticket would be created with:', ticketData);
+      // If using custom type, add it to the form data
+      if (showCustomInput) {
+        formData.ticketTypeName = customTicketType;
+      }
+      
+      const response = await fetch('/api/forms/submissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          formTemplateId: showCustomInput ? 'custom-ticket' : selectedTicketType,
+          formData
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error creating ticket');
+      }
       
       setNotification({
         type: 'success',
-        message: 'Ticket created successfully!'
+        message: 'Ticket created successfully'
       });
       
       // Reset form
       setTicketData({
         ticketType: '',
-        priority: 'medium',
         fields: {}
       });
       setSelectedTicketType('');
+      setCustomTicketType('');
+      setShowCustomInput(false);
       
+      // Redirect back to admin dashboard after 1.5 seconds
+      setTimeout(() => {
+        router.push('/admin');
+      }, 1500);
     } catch (error) {
       console.error('Error creating ticket:', error);
       setNotification({
@@ -398,11 +496,6 @@ export default function TicketCreationForm() {
       });
     } finally {
       setSubmitting(false);
-      
-      // Clear notification after 5 seconds
-      setTimeout(() => {
-        setNotification(null);
-      }, 5000);
     }
   };
 
@@ -419,6 +512,34 @@ export default function TicketCreationForm() {
     }));
   };
 
+  // When component loads, default to create-type mode for admins
+  useEffect(() => {
+    if (user?.role === 'admin' && !isEditMode && formMode === 'create-ticket') {
+      setFormMode('create-type');
+    }
+  }, [user, isEditMode, formMode]);
+
+  // Modified to allow using an existing template as a base
+  const [baseTemplateId, setBaseTemplateId] = useState('');
+  
+  // Handle selecting a base template
+  const handleBaseTemplateChange = (e) => {
+    const selectedId = e.target.value;
+    setBaseTemplateId(selectedId);
+    
+    if (selectedId) {
+      const selectedTemplate = ticketTypes.find(type => type.id === selectedId);
+      if (selectedTemplate) {
+        // Copy name and fields from the selected template
+        setNewTicketType(prev => ({
+          ...prev,
+          name: `${selectedTemplate.name} (Copy)`,
+          fields: [...selectedTemplate.fields]
+        }));
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -432,21 +553,24 @@ export default function TicketCreationForm() {
       {notification && (
         <div className={`mb-6 p-4 rounded-md ${
           notification.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
+            ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400' 
+            : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400'
         }`}>
           {notification.message}
         </div>
       )}
 
-      {formMode === 'create-ticket' ? (
-        // Ticket creation form
+      {loading ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : formMode === 'create-ticket' ? (
         <div>
-          <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-lg font-medium">Create New Ticket</h2>
-            <Button 
-              type="button" 
-              variant="secondary" 
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-medium">Create New Support Ticket</h2>
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleCreateNewTicketType}
             >
               Define New Ticket Type
@@ -458,26 +582,55 @@ export default function TicketCreationForm() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Ticket Type *
               </label>
-              <select
-                name="ticketType"
-                value={selectedTicketType}
-                onChange={handleTicketTypeChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                required
-              >
-                <option value="">Select Ticket Type</option>
-                {ticketTypes.map(type => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center space-x-2 mb-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={showCustomInput ? "secondary" : "outline"}
+                  onClick={handleToggleCustomInput}
+                >
+                  {showCustomInput ? "Use Existing Type" : "Create New Type"}
+                </Button>
+              </div>
+              
+              {showCustomInput ? (
+                <input
+                  type="text"
+                  value={customTicketType}
+                  onChange={handleCustomTicketTypeChange}
+                  placeholder="Enter new ticket type name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <select
+                    name="ticketType"
+                    value={selectedTicketType}
+                    onChange={handleTicketTypeChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                  >
+                    <option value="">Select Ticket Type</option>
+                    {ticketTypes.map(type => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
-            {selectedTicketType && (
+            {!showCustomInput && selectedTicketType && (
               <>
                 {/* Dynamic fields based on selected ticket type */}
                 {ticketTypes
+                  .find(type => type.id === selectedTicketType)
+                  ?.fields && Array.isArray(ticketTypes
+                  .find(type => type.id === selectedTicketType)
+                  ?.fields) ? (
+                  ticketTypes
                   .find(type => type.id === selectedTicketType)
                   ?.fields.map(field => (
                     <div key={field.id}>
@@ -505,25 +658,20 @@ export default function TicketCreationForm() {
                         />
                       )}
                     </div>
-                  ))}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    name="priority"
-                    value={ticketData.priority}
-                    onChange={handleFieldChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
+                  ))
+                ) : (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md">
+                    <p>There was an issue loading the fields for this form. Please try a different form or contact an administrator.</p>
+                  </div>
+                )}
               </>
+            )}
+            
+            {showCustomInput && customTicketType && (
+              <div className="p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-md dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400">
+                <p>Creating a new ticket with type: <strong>{customTicketType}</strong></p>
+                <p className="text-sm mt-1">Note: This will create a simple ticket without predefined fields.</p>
+              </div>
             )}
 
             <div className="flex justify-end">
@@ -537,7 +685,7 @@ export default function TicketCreationForm() {
               </Button>
               <Button
                 type="submit"
-                disabled={submitting || !selectedTicketType}
+                disabled={submitting || (!selectedTicketType && !customTicketType)}
               >
                 {submitting ? 'Creating...' : 'Create Ticket'}
               </Button>
@@ -548,10 +696,31 @@ export default function TicketCreationForm() {
         // Ticket type creation/editing form
         <div>
           <h2 className="text-lg font-medium mb-6">
-            {isEditMode ? 'Edit Ticket Type' : 'Define New Ticket Type'}
+            {isEditMode ? 'Edit Ticket Type' : 'Create New Ticket Type'}
           </h2>
           
           <div className="space-y-6">
+            {!isEditMode && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Base Template (Optional)
+                </label>
+                <select
+                  value={baseTemplateId}
+                  onChange={handleBaseTemplateChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  <option value="">Create from scratch</option>
+                  {ticketTypes.map(type => (
+                    <option key={type.id} value={type.id}>{type.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Select an existing template to use as a starting point, or start from scratch.
+                </p>
+              </div>
+            )}
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Ticket Type Name *
@@ -561,7 +730,7 @@ export default function TicketCreationForm() {
                 name="name"
                 value={newTicketType.name}
                 onChange={handleNewTicketTypeChange}
-                placeholder="LAN Issue"
+                placeholder="Enter ticket type name"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 required
               />

@@ -17,8 +17,6 @@ export async function OPTIONS() {
 
 // GET all helpdesk users
 export async function GET(request) {
-  let db = null;
-  
   try {
     console.log('[DEBUG] GET /api/admin/helpdesk-users - Starting request');
     
@@ -44,22 +42,19 @@ export async function GET(request) {
     }
 
     // Connect to database
-    db = await connectToDatabase();
+    const db = await connectToDatabase();
     console.log('[DEBUG] GET /api/admin/helpdesk-users - Database connected');
     
-    // Try direct SQL query first for debugging
-    const [rawUsers] = await db.query('SELECT id, name, email, role FROM users WHERE role = "helpdesk"');
-    console.log(`[DEBUG] Direct SQL found ${rawUsers.length} helpdesk users`);
-    
-    // Also try model query
+    // Fetch helpdesk users using the model
     const helpdeskUsers = await User.findAll({
       where: { role: 'helpdesk' },
-      attributes: ['id', 'name', 'email', 'role', 'created_at']
+      attributes: ['id', 'name', 'email', 'role', 'created_at'],
+      raw: true // Get plain objects instead of Sequelize instances
     });
     
-    console.log(`[DEBUG] GET /api/admin/helpdesk-users - Found ${helpdeskUsers.length} helpdesk users via model query`);
+    console.log(`[DEBUG] GET /api/admin/helpdesk-users - Found ${helpdeskUsers.length} helpdesk users`);
     
-    // Return the model results
+    // Return the results
     return NextResponse.json(helpdeskUsers);
     
   } catch (error) {
@@ -80,8 +75,7 @@ export async function GET(request) {
       { 
         message: 'Error fetching helpdesk users', 
         error: error.message,
-        stack: error.stack,
-        dbInfo: db ? 'Connected' : 'Not connected'
+        stack: error.stack
       },
       { status: 500 }
     );

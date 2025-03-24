@@ -27,6 +27,14 @@ const TicketAssignment = sequelize.define('TicketAssignment', {
       key: 'id'
     }
   },
+  assigned_by: {
+    type: DataTypes.STRING(36),
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
+  },
   assigned_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW

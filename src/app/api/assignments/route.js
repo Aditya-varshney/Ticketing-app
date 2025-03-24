@@ -96,14 +96,70 @@ export async function POST(request) {
     await connectToDatabase();
     
     const user = await User.findByPk(session.user.id);
-    if (!user || user.role !== 'admin') {
+    
+    // Parse request body
+    const requestBody = await request.json();
+    const { ticketId, helpdeskId, selfAssign } = requestBody;
+    
+    // For self-assignment by helpdesk staff
+    if (selfAssign === true) {
+      // Verify the user is a helpdesk staff
+      if (user.role !== 'helpdesk') {
+        return NextResponse.json(
+          { message: "Only helpdesk staff can self-assign tickets" },
+          { status: 403 }
+        );
+      }
+      
+      // Verify ticket exists
+      const ticket = await FormSubmission.findByPk(ticketId);
+      if (!ticket) {
+        return NextResponse.json(
+          { message: "Ticket not found" },
+          { status: 404 }
+        );
+      }
+      
+      // Check if ticket is already assigned
+      const existingAssignment = await TicketAssignment.findOne({
+        where: { ticket_id: ticketId }
+      });
+      
+      if (existingAssignment) {
+        return NextResponse.json(
+          { message: "Ticket is already assigned" },
+          { status: 400 }
+        );
+      }
+      
+      // Create new assignment with helpdesk as self
+      const newAssignment = await TicketAssignment.create({
+        id: uuidv4(),
+        ticket_id: ticketId,
+        helpdesk_id: user.id,
+        assigned_by: user.id,
+        assigned_at: new Date()
+      });
+      
+      // Get the user who created the ticket for notification purposes
+      const ticketDetails = await FormSubmission.findByPk(ticketId, {
+        include: [{ model: User, as: 'submitter' }]
+      });
+      
+      return NextResponse.json({
+        message: "Ticket self-assigned successfully",
+        assignment: newAssignment,
+        submitterId: ticketDetails?.submitter?.id
+      }, { status: 201 });
+    }
+    
+    // For admin assignment (existing flow)
+    if (user.role !== 'admin') {
       return NextResponse.json(
-        { message: "Only admins can assign tickets" },
+        { message: "Only admins can assign tickets to others" },
         { status: 403 }
       );
     }
-    
-    const { ticketId, helpdeskId } = await request.json();
     
     if (!ticketId || !helpdeskId) {
       return NextResponse.json(
@@ -147,6 +203,11 @@ export async function POST(request) {
       where: { ticket_id: ticketId }
     });
     
+    // Get the user who created the ticket for notification purposes
+    const ticketDetails = await FormSubmission.findByPk(ticketId, {
+      include: [{ model: User, as: 'submitter' }]
+    });
+    
     if (existingAssignment) {
       // Update existing assignment
       existingAssignment.helpdesk_id = helpdeskId;
@@ -154,18 +215,23 @@ export async function POST(request) {
       
       return NextResponse.json({
         message: "Ticket assignment updated successfully",
-        assignment: existingAssignment
+        assignment: existingAssignment,
+        submitterId: ticketDetails?.submitter?.id
       });
     } else {
       // Create new assignment
       const newAssignment = await TicketAssignment.create({
+        id: uuidv4(),
         ticket_id: ticketId,
-        helpdesk_id: helpdeskId
+        helpdesk_id: helpdeskId,
+        assigned_by: user.id,
+        assigned_at: new Date()
       });
       
       return NextResponse.json({
         message: "Ticket assigned successfully",
-        assignment: newAssignment
+        assignment: newAssignment,
+        submitterId: ticketDetails?.submitter?.id
       }, { status: 201 });
     }
   } catch (error) {

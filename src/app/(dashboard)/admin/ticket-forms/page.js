@@ -12,6 +12,7 @@ export default function TicketFormsPage() {
   const [loadingForms, setLoadingForms] = useState(true);
   const [notification, setNotification] = useState(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [expandedForm, setExpandedForm] = useState(null);
 
   useEffect(() => {
     // Check if user is authenticated and has the correct role
@@ -132,6 +133,14 @@ export default function TicketFormsPage() {
     }
   };
 
+  const toggleForm = (formId) => {
+    if (expandedForm === formId) {
+      setExpandedForm(null);
+    } else {
+      setExpandedForm(formId);
+    }
+  };
+
   if (loading || loadingForms) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -193,21 +202,37 @@ export default function TicketFormsPage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-4">
             {ticketTypes.map(form => (
-              <div key={form.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">{form.name}</h3>
+              <div key={form.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div 
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors"
+                  onClick={() => toggleForm(form.id)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span className={`transform transition-transform ${expandedForm === form.id ? 'rotate-90' : ''}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </span>
+                    <h3 className="text-lg font-medium">{form.name}</h3>
+                  </div>
                   <div className="flex space-x-2">
                     <Button
-                      onClick={() => handleEditForm(form.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditForm(form.id);
+                      }}
                       variant="secondary"
                       size="sm"
                     >
                       Edit
                     </Button>
                     <Button
-                      onClick={() => handleDeleteForm(form.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteForm(form.id);
+                      }}
                       variant="danger"
                       size="sm"
                     >
@@ -216,83 +241,51 @@ export default function TicketFormsPage() {
                   </div>
                 </div>
                 
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium mb-2">Fields:</h4>
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
-                    <div className="overflow-x-auto max-h-96">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
-                        <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                          <tr>
-                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Name</th>
-                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Type</th>
-                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Required</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                          {form.fields && Array.isArray(form.fields) ? form.fields.map((field) => (
-                            <tr key={field.id}>
-                              <td className="px-4 py-2 text-sm text-gray-900 dark:text-white break-words">{field.name}</td>
-                              <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">{field.type}</td>
-                              <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
-                                {field.required ? 'Yes' : 'No'}
-                              </td>
-                            </tr>
-                          )) : (
+                {expandedForm === form.id && (
+                  <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                    <h4 className="text-sm font-medium mb-2">Fields:</h4>
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden mb-4">
+                      <div className="overflow-x-auto max-h-96">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
+                          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                             <tr>
-                              <td colSpan="3" className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                Fields data not available or in incorrect format
-                              </td>
+                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Name</th>
+                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Type</th>
+                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Required</th>
                             </tr>
-                          )}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                            {form.fields && Array.isArray(form.fields) ? form.fields.map((field) => (
+                              <tr key={field.id}>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white break-words">{field.name}</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">{field.type}</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                  {field.required ? 'Yes' : 'No'}
+                                </td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td colSpan="3" className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                  Fields data not available or in incorrect format
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => router.push(`/admin/create-ticket?formId=${form.id}`)}
+                        variant="primary"
+                        size="md"
+                      >
+                        Create Ticket Using This Form
+                      </Button>
                     </div>
                   </div>
-                </div>
-                
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium mb-2">Form Preview:</h4>
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-900">
-                    {form.fields && Array.isArray(form.fields) ? form.fields.map((field) => (
-                      <div key={field.id} className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          {field.name} {field.required && <span className="text-red-500">*</span>}
-                        </label>
-                        
-                        {field.type === 'textarea' ? (
-                          <textarea
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            rows="3"
-                            readOnly
-                            placeholder={`${field.name} field`}
-                          />
-                        ) : (
-                          <input
-                            type={field.type}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            readOnly
-                            placeholder={`${field.name} field`}
-                          />
-                        )}
-                      </div>
-                    )) : (
-                      <p className="text-center text-gray-500 dark:text-gray-400 py-4">
-                        No fields available to preview
-                      </p>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="mt-6">
-                  <Button
-                    onClick={() => router.push(`/admin/create-ticket?formId=${form.id}`)}
-                    variant="primary"
-                    size="md"
-                    className="w-full"
-                  >
-                    Create Ticket Using This Form
-                  </Button>
-                </div>
+                )}
               </div>
             ))}
           </div>
