@@ -251,6 +251,15 @@ export default function HelpdeskTicketDetailsPage({ params }) {
     }
   };
   
+  // Early return if loading auth or user is not available yet
+  if (loading || !user) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
   if (loading || loadingTicket) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -348,52 +357,61 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                       <p>No messages yet</p>
                       <p className="text-sm">Start the conversation by sending a message</p>
                     </div>
+                  ) : !user ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="text-gray-500 dark:text-gray-400">Loading user data...</div>
+                    </div>
                   ) : (
                     <div className="space-y-4">
-                      {messages.map(message => (
-                        <div 
-                          key={message.id}
-                          className={`flex ${message.sender === user.id ? 'justify-end' : 'justify-start'}`}
-                        >
-                          {message.sender !== user.id && (
-                            <div className="flex-shrink-0 mr-2 mt-1">
-                              <Avatar 
-                                src={message.senderUser?.avatar} 
-                                alt={message.senderUser?.name || "User"} 
-                                size="sm" 
-                              />
-                            </div>
-                          )}
-                          <div className="flex flex-col max-w-[75%]">
-                            {message.sender !== user.id && (
-                              <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                                <span className="font-semibold">{message.senderUser?.name || 'Unknown'}</span>
-                                <span className="ml-1">({message.senderUser?.role || 'unknown'})</span>
+                      {messages.map(message => {
+                        // Ensure we have a valid user before rendering messages
+                        const isFromCurrentUser = user && message.sender === user.id;
+                        
+                        return (
+                          <div 
+                            key={message.id}
+                            className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            {!isFromCurrentUser && (
+                              <div className="flex-shrink-0 mr-2 mt-1">
+                                <Avatar 
+                                  src={message.senderUser?.avatar} 
+                                  alt={message.senderUser?.name || "User"} 
+                                  size="sm" 
+                                />
                               </div>
                             )}
-                            <div 
-                              className={`rounded-lg p-3 ${
-                                message.sender === user.id 
-                                  ? 'bg-blue-500 text-white ml-auto' 
-                                  : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-600'
-                              }`}
-                            >
-                              <div className="text-sm">{message.content}</div>
-                            </div>
-                            <div className={`text-xs mt-1 ${
-                              message.sender === user.id 
-                                ? 'text-gray-500 dark:text-gray-400 text-right' 
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              {message.sender === user.id ? (
-                                <span>You • {new Date(message.created_at).toLocaleString()}</span>
-                              ) : (
-                                <span>{new Date(message.created_at).toLocaleString()}</span>
+                            <div className="flex flex-col max-w-[75%]">
+                              {!isFromCurrentUser && (
+                                <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="font-semibold">{message.senderUser?.name || 'Unknown'}</span>
+                                  <span className="ml-1">({message.senderUser?.role || 'unknown'})</span>
+                                </div>
                               )}
+                              <div 
+                                className={`rounded-lg p-3 ${
+                                  isFromCurrentUser 
+                                    ? 'bg-blue-500 text-white ml-auto' 
+                                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-600'
+                                }`}
+                              >
+                                <div className="text-sm">{message.content}</div>
+                              </div>
+                              <div className={`text-xs mt-1 ${
+                                isFromCurrentUser 
+                                  ? 'text-gray-500 dark:text-gray-400 text-right' 
+                                  : 'text-gray-500 dark:text-gray-400'
+                              }`}>
+                                {isFromCurrentUser ? (
+                                  <span>You • {new Date(message.created_at).toLocaleString()}</span>
+                                ) : (
+                                  <span>{new Date(message.created_at).toLocaleString()}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       <div ref={messagesEndRef} />
                     </div>
                   )}

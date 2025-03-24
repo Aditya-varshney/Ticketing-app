@@ -264,6 +264,22 @@ async function runUnifiedSetup() {
     } else {
       log('assigned_by column already exists in ticket_assignments table', 'info');
     }
+
+    // Check for assigned_at column in ticket_assignments
+    const [assignedAtExists] = await connection.query(
+      `SHOW COLUMNS FROM ticket_assignments LIKE 'assigned_at'`
+    );
+
+    if (assignedAtExists.length === 0) {
+      log('Adding assigned_at column to ticket_assignments table...');
+      await connection.query(`
+        ALTER TABLE ticket_assignments 
+        ADD COLUMN assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      `);
+      log('Added assigned_at column to ticket_assignments table', 'success');
+    } else {
+      log('assigned_at column already exists in ticket_assignments table', 'info');
+    }
     
     // STEP 4: Seed default users
     log('\n==== STEP 4: Creating Default Users ====');
@@ -280,9 +296,11 @@ async function runUnifiedSetup() {
       { id: uuidv4(), name: 'Helpdesk3', email: 'helpdesk3@example.com', password: 'helpdesk3', role: 'helpdesk' },
       
       // Regular users
-      { id: uuidv4(), name: 'User1', email: 'user1@example.com', password: 'user1', role: 'user' },
-      { id: uuidv4(), name: 'User2', email: 'user2@example.com', password: 'user2', role: 'user' },
-      { id: uuidv4(), name: 'User3', email: 'user3@example.com', password: 'user3', role: 'user' }
+      { id: uuidv4(), name: 'Aditya', email: 'user1@example.com', password: 'user1', role: 'user' },
+      { id: uuidv4(), name: 'Tejas', email: 'user2@example.com', password: 'user2', role: 'user' },
+      { id: uuidv4(), name: 'Farhan', email: 'user3@example.com', password: 'user3', role: 'user' },
+      { id: uuidv4(), name: 'Soumojit', email: 'user4@example.com', password: 'user4', role: 'user' },
+      { id: uuidv4(), name: 'Vedant', email: 'user5@example.com', password: 'user5', role: 'user' }
     ];
     
     // Create each user if they don't exist
