@@ -18,13 +18,13 @@ FormTemplate.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
 User.hasMany(FormSubmission, { foreignKey: 'submitted_by', as: 'submissions' });
 FormSubmission.belongsTo(User, { foreignKey: 'submitted_by', as: 'submitter' });
-FormSubmission.belongsTo(FormTemplate, { foreignKey: 'form_template_id', as: 'template' });
+FormSubmission.belongsTo(FormTemplate, { foreignKey: 'form_template_id', as: 'template', onDelete: 'CASCADE' });
 
 // Ticket Assignment relationships
 FormSubmission.hasOne(TicketAssignment, { foreignKey: 'ticket_id', as: 'assignment' });
 TicketAssignment.belongsTo(FormSubmission, { foreignKey: 'ticket_id', as: 'ticket' });
 TicketAssignment.belongsTo(User, { foreignKey: 'helpdesk_id', as: 'helpdesk' });
-TicketAssignment.belongsTo(User, { foreignKey: 'assigned_by', as: 'assigner' });
+TicketAssignment.belongsTo(User, { foreignKey: 'assigned_by', as: 'assignedBy' });
 User.hasMany(TicketAssignment, { foreignKey: 'helpdesk_id', as: 'assignedTickets' });
 User.hasMany(TicketAssignment, { foreignKey: 'assigned_by', as: 'createdAssignments' });
 

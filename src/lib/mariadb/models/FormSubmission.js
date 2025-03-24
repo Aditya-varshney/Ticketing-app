@@ -12,11 +12,19 @@ const FormSubmission = sequelize.define('FormSubmission', {
   },
   form_template_id: {
     type: DataTypes.STRING(36),
-    allowNull: false
+    allowNull: true,
+    references: {
+      model: 'form_templates',
+      key: 'id'
+    }
   },
   submitted_by: {
     type: DataTypes.STRING(36),
-    allowNull: false
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'id'
+    }
   },
   form_data: {
     type: DataTypes.TEXT,

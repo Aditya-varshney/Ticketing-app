@@ -307,12 +307,13 @@ export async function PUT(request) {
     const data = await request.json();
     const { priority, status } = data;
     
+    // Update the submission fields
     const updateData = {};
     // Only admins can update priority
     if (priority && user.role === 'admin') updateData.priority = priority;
     // Both admins and helpdesk can update status
     if (status) updateData.status = status;
-    
+
     await submission.update(updateData);
     
     return NextResponse.json({ 

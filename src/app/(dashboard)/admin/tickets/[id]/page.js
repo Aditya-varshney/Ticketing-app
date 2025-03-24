@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
+import Avatar from '@/components/ui/Avatar';
 
 export default function AdminTicketDetailsPage({ params }) {
   const ticketId = params.id;
@@ -16,6 +17,17 @@ export default function AdminTicketDetailsPage({ params }) {
   const [notification, setNotification] = useState(null);
   const [priority, setPriority] = useState('medium');
   const [status, setStatus] = useState('open');
+  
+  // Chat state
+  const [messages, setMessages] = useState([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const messagesEndRef = useRef(null);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
   
   useEffect(() => {
     // Check if user is authenticated and has the correct role
@@ -43,6 +55,11 @@ export default function AdminTicketDetailsPage({ params }) {
         setTicket(data);
         setPriority(data.priority || 'medium');
         setStatus(data.status || 'open');
+        
+        // Now that we have the ticket data, fetch messages
+        if (data.submitter?.id) {
+          fetchMessages();
+        }
       } catch (error) {
         console.error('Error fetching ticket:', error);
         setNotification({
@@ -56,6 +73,34 @@ export default function AdminTicketDetailsPage({ params }) {
     
     fetchTicket();
   }, [isAuthenticated, ticketId]);
+  
+  // Fetch messages for this ticket
+  const fetchMessages = async () => {
+    try {
+      setLoadingMessages(true);
+      const response = await fetch(`/api/chat/messages?ticketId=${ticketId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+      }
+      
+      const data = await response.json();
+      setMessages(data);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setNotification({
+        type: 'error',
+        message: 'Could not load messages. Please try again later.'
+      });
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+  
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
   
   const handleUpdateTicket = async () => {
     try {
@@ -88,6 +133,11 @@ export default function AdminTicketDetailsPage({ params }) {
         const updatedTicket = await updatedTicketResponse.json();
         setTicket(updatedTicket);
       }
+      
+      // If status was changed to resolved, send automatic message
+      if (status === 'resolved' && ticket.status !== 'resolved') {
+        await handleSendStatusUpdateMessage();
+      }
     } catch (error) {
       console.error('Error updating ticket:', error);
       setNotification({
@@ -101,6 +151,65 @@ export default function AdminTicketDetailsPage({ params }) {
       setTimeout(() => {
         setNotification(null);
       }, 5000);
+    }
+  };
+  
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !ticket?.submitter?.id) return;
+    
+    try {
+      setSendingMessage(true);
+      const response = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: newMessage,
+          receiverId: ticket.submitter.id,
+          ticketId: ticketId
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+      
+      setNewMessage('');
+      // Refresh messages
+      fetchMessages();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setNotification({
+        type: 'error',
+        message: 'Failed to send message'
+      });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+  
+  // Send automatic status update message
+  const handleSendStatusUpdateMessage = async () => {
+    if (!ticket?.submitter?.id) return;
+    
+    try {
+      await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: `Ticket status has been updated to: ${status.toUpperCase()}`,
+          receiverId: ticket.submitter.id,
+          ticketId: ticketId
+        }),
+      });
+      
+      // No need to refresh messages, as handleUpdateTicket will call it
+    } catch (error) {
+      console.error('Error sending status update message:', error);
     }
   };
   
@@ -149,8 +258,8 @@ export default function AdminTicketDetailsPage({ params }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">
               {ticket.template?.name || 'Ticket Information'}
@@ -186,7 +295,7 @@ export default function AdminTicketDetailsPage({ params }) {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">User Information</h2>
             <dl className="divide-y divide-gray-200 dark:divide-gray-700">
               <div className="py-3 grid grid-cols-3">
@@ -207,11 +316,112 @@ export default function AdminTicketDetailsPage({ params }) {
                   {new Date(ticket.created_at).toLocaleString()}
                 </dd>
               </div>
+              <div className="py-3 grid grid-cols-3">
+                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</dt>
+                <dd className="text-sm text-gray-900 dark:text-white col-span-2">
+                  {new Date(ticket.updated_at).toLocaleString()}
+                </dd>
+              </div>
             </dl>
+          </div>
+          
+          {/* Chat Section */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold mb-4">Ticket Communication</h2>
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg h-[400px] flex flex-col">
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
+                <div className="text-sm font-medium">
+                  <span className="text-blue-600 dark:text-blue-400">Admin View:</span> All communications for this ticket
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
+                {loadingMessages ? (
+                  <div className="flex justify-center items-center h-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center text-gray-500 dark:text-gray-400 my-8">
+                    <p>No messages yet</p>
+                    <p className="text-sm">Start the conversation by sending a message</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {messages.map(message => (
+                      <div 
+                        key={message.id} 
+                        className={`flex ${message.sender === user?.id ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {message.sender !== user?.id && (
+                          <div className="flex-shrink-0 mr-2 mt-1">
+                            <Avatar 
+                              src={message.senderUser?.avatar} 
+                              alt={message.senderUser?.name || "User"} 
+                              size="sm" 
+                            />
+                          </div>
+                        )}
+                        <div className="flex flex-col max-w-[70%]">
+                          {message.sender !== user?.id && (
+                            <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+                              <span className="font-semibold">{message.senderUser?.name || 'Unknown'}</span>
+                              <span className="ml-1">({message.senderUser?.role || 'user'})</span>
+                            </div>
+                          )}
+                          <div 
+                            className={`rounded-lg p-3 ${
+                              message.sender === user?.id 
+                                ? 'bg-blue-500 text-white ml-auto' 
+                                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
+                            }`}
+                          >
+                            <div className="text-sm">{message.content}</div>
+                          </div>
+                          <div className={`text-xs mt-1 ${
+                            message.sender === user?.id 
+                              ? 'text-gray-500 dark:text-gray-400 text-right' 
+                              : 'text-gray-500 dark:text-gray-400'
+                          }`}>
+                            {message.sender === user?.id ? (
+                              <span>You • {new Date(message.created_at).toLocaleString()}</span>
+                            ) : (
+                              <span>{new Date(message.created_at).toLocaleString()}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+              <form onSubmit={handleSendMessage} className="border-t dark:border-gray-700 p-4 flex">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message to the user..."
+                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  disabled={sendingMessage || !ticket?.submitter?.id}
+                />
+                <button
+                  type="submit"
+                  className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
+                  disabled={!newMessage.trim() || sendingMessage || !ticket?.submitter?.id}
+                >
+                  {sendingMessage ? (
+                    <span className="inline-block w-5 h-5 border-t-2 border-white rounded-full animate-spin"></span>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 h-fit">
           <h2 className="text-xl font-semibold mb-6">Ticket Management</h2>
           
           <div className="space-y-6">
@@ -248,27 +458,35 @@ export default function AdminTicketDetailsPage({ params }) {
               </select>
             </div>
             
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Assignment
+              </label>
+              <div className="p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
+                {ticket.assignment ? (
+                  <div>
+                    <p className="text-sm font-medium">
+                      Assigned to: {ticket.assignment.helpdesk?.name || 'Unknown'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Assigned on: {ticket.assignment.assigned_at ? new Date(ticket.assignment.assigned_at).toLocaleString() : 'Unknown date'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Not assigned to any helpdesk staff yet
+                  </p>
+                )}
+              </div>
+            </div>
+            
             <Button
               onClick={handleUpdateTicket}
-              className="w-full"
               disabled={updating}
+              className="w-full"
             >
               {updating ? 'Updating...' : 'Update Ticket'}
             </Button>
-            
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-              <h3 className="text-lg font-medium mb-2">Actions</h3>
-              
-              <div className="space-y-3">
-                <Button
-                  onClick={() => router.push(`/chat/${ticket.submitter?.id}`)}
-                  variant="secondary"
-                  className="w-full"
-                >
-                  Chat with Submitter
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

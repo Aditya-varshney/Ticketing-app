@@ -2,383 +2,141 @@
 
 A comprehensive ticketing system for managing support requests with role-based access control, custom ticket types, and real-time messaging.
 
-## Features
+## Quick Setup Guide
 
-### Core Functionality
-- **Role-Based Access Control**: Admin, Helpdesk, and User roles with appropriate permissions
-- **Ticket Management**: Create, view, update, and close support tickets
-- **User Authentication**: Secure login and registration system
-- **Dashboard**: Role-specific dashboards with relevant information
-
-### Advanced Features
-
-#### Custom Ticket Types & Dynamic Forms
-- **Form Templates**: Create custom ticket types with dynamic fields
-- **Field Types**: Support for various field types including text, number, email, date, and textarea
-- **Required Fields**: Mark specific fields as required for ticket submission
-- **Form Preview**: Preview form templates before creating tickets
-
-#### Priority & Status Management
-- **Priority Levels**: Set ticket priorities (Low, Medium, High, Urgent)
-- **Visual Indicators**: Color-coded badges for different priorities and statuses
-- **Status Tracking**: Track tickets through their lifecycle (Open, In Progress, Resolved, Closed)
-
-#### User Experience Enhancements
-- **Dark Mode Support**: Toggle between light and dark themes
-- **Responsive Design**: Mobile-friendly interface for access on any device
-- **Real-time Updates**: Instant notifications for ticket updates
-- **User Profiles**: Detailed user information and ticket history
-
-#### Analytics & Reporting
-- **Dashboard Statistics**: Visual representation of ticket metrics
-- **Chart Visualizations**: Distribution of tickets by priority, status, and category
-- **Performance Metrics**: Track response times and resolution rates
-- **Helpdesk Performance**: Monitor workload and efficiency of helpdesk staff
-
-#### Communication Tools
-- **Ticket Comments**: Add comments and updates to existing tickets
-- **User Messaging**: Direct messaging between users and helpdesk staff
-- **Notifications**: Email and in-app notifications for ticket updates
-- **Quick Replies**: Predefined responses for common queries
-
-## Prerequisites
-
-- Node.js (v16+)
-- MariaDB/MySQL (v10.5+ / v8.0+)
-- npm (v7+)
-
-## Getting Started: Complete Setup Guide
-
-Follow these steps in order to set up the entire application from scratch.
-
-### 1. Clone the Repository
+To get started with the Support Ticketing System, follow these simple steps:
 
 ```bash
-git clone https://github.com/yourusername/ticketing_app.git
-cd ticketing_app
-```
+# Clone the repository
+git clone <repository-url>
+cd Ticketing-app
 
-### 2. Install Dependencies
-
-```bash
+# Install dependencies
 npm install
-```
 
-This will install all required dependencies including:
-- Next.js and React for the frontend and API routes
-- MariaDB drivers and Sequelize ORM for database operations 
-- NextAuth.js for authentication
-- Tailwind CSS for styling
-- Socket.io for real-time communication
-- Other utility libraries
+# Create a .env.local file with your database credentials
+# You can copy from .env.example if it exists
+cp .env.example .env.local  # Then edit with your database details
 
-### 3. Set up MariaDB
+# Run the unified setup script (creates database, tables, and default data)
+npm run setup
 
-#### Install MariaDB (if not already installed)
-
-Ubuntu/Debian:
-```bash
-sudo apt update
-sudo apt install mariadb-server
-sudo mariadb-secure-installation
-```
-
-Arch Linux:
-```bash
-sudo pacman -S mariadb
-sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
-sudo systemctl start mariadb
-sudo systemctl enable mariadb
-```
-
-#### Database Setup
-
-Our application includes a comprehensive database setup script that handles:
-- Creating the database and application user
-- Setting up all required tables:
-  - `users`: User accounts and authentication
-  - `messages`: Communication between users
-  - `assignments`: Helpdesk-to-user assignments
-  - `form_templates`: Custom ticket type definitions
-  - `form_submissions`: Actual ticket data
-- Creating default user accounts for testing (admin, helpdesk, and regular users)
-
-Run the setup script:
-```bash
-npm run setup-db
-```
-
-If you prefer manual setup, you can use these commands:
-```bash
-sudo mariadb
-```
-
-Then in MariaDB CLI:
-```sql
-CREATE DATABASE ticketing;
-CREATE USER 'ticketing_app'@'localhost' IDENTIFIED BY 'secure_password';
-GRANT ALL PRIVILEGES ON ticketing.* TO 'ticketing_app'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
-```
-
-### 4. Configure Environment Variables
-
-Create a `.env.local` file in the project root with the following configuration:
-
-```
-# MariaDB Connection
-MARIADB_HOST=localhost
-MARIADB_USER=ticketing_app
-MARIADB_PASSWORD=secure_password
-MARIADB_DATABASE=ticketing
-
-# NextAuth (generate a secure random string for NEXTAUTH_SECRET)
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-secret-key-here
-
-# Socket.IO
-NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
-
-# App URL
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-You can generate a secure random string for NEXTAUTH_SECRET with:
-```bash
-openssl rand -base64 32
-```
-
-### 5. Verify Database Connection
-
-Before running the application, verify that the database connection is working:
-
-```bash
-npm run test-db
-```
-
-This script will:
-- Test the database connection
-- Verify that all required tables exist
-- Check for default user accounts
-
-If any issues are found, the script will provide guidance on how to fix them.
-
-### 6. Run the Application
-
-Start the development server:
-```bash
+# Start the development server
 npm run dev
 ```
 
 The application will be available at http://localhost:3000
 
-### 7. Default Login Credentials
+### Default Login Credentials
 
-After setup, you can log in with these default accounts:
+After setup, you can log in with these default test accounts:
 
-| Role     | Email              | Password    |
-|----------|-------------------|-------------|
-| Admin    | admin@example.com | Admin123!   |
-| Helpdesk | help@example.com  | Helpdesk123!|
-| User     | user@example.com  | User123!    |
+| Role     | Email                  | Password  |
+|----------|------------------------|-----------|
+| Admin    | admin1@example.com     | admin1    |
+| Helpdesk | helpdesk1@example.com  | helpdesk1 |
+| User     | user1@example.com      | user1     |
 
-## Database Management Scripts
+## Features
 
-The application includes several helpful scripts to manage your database:
+- **Role-based access control**: Separate interfaces for users, helpdesk staff, and administrators
+- **Customizable ticket forms**: Create and manage different ticket types with custom fields
+- **Real-time messaging**: Communication between users and support staff
+- **Ticket assignment**: Assign tickets to helpdesk staff with automatic notifications
+- **Priority and status tracking**: Monitor and update ticket status and priority
+- **Dashboard analytics**: View ticket statistics and performance metrics
 
-### Core Database Scripts
+## System Requirements
+
+- Node.js 18.x or higher
+- MariaDB/MySQL 10.x or higher
+
+## Environment Configuration
+
+Create a `.env.local` file in the project root with the following:
+
+```
+# Database Configuration
+MARIADB_HOST=localhost
+MARIADB_USER=ticketing_app
+MARIADB_PASSWORD=your_password
+MARIADB_DATABASE=ticketing
+MARIADB_PORT=3306
+
+# NextAuth Configuration
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_secure_random_string
+```
+
+The setup script will attempt to create the database and user if given root credentials:
+
+```
+# Optional: For automatic database creation (if you have root access)
+MARIADB_ROOT_PASSWORD=your_root_password
+```
+
+If you don't provide root credentials, the script will display the SQL commands you need to run manually.
+
+## Available Scripts
 
 ```bash
-# Set up the database, create tables and default users
-npm run setup-db
+# Start development server
+npm run dev
 
-# Clean all data from the database (drops all tables)
-npm run clean-db
-
-# Test the database connection and table structure
-npm run test-db
-
-# View specific database information
-npm run test-db:all      # Run all checks
-npm run test-db:tables   # View all tables
-npm run test-db:users    # View user information
-npm run test-db:forms    # View form templates and submissions
-
-# Update the assignments schema (if needed)
-npm run update-schema
-```
-
-### Additional Database Utility Scripts
-
-These scripts provide additional functionality for database management:
-
-```bash
-# Debug helpdesk user assignments
-node scripts/debug-helpdesk-users.js
-
-# Fix database collation issues
-node scripts/fix-collation.js
-
-# Update the priority enum values
-node scripts/update-priority-enum.js
-```
-
-## Understanding the Codebase Structure
-
-The application uses a standard Next.js project structure:
-
-```
-/
-├── public/               # Static assets
-├── scripts/              # Database and utility scripts
-├── src/
-│   ├── app/              # Next.js app router
-│   │   ├── (auth)/       # Authentication routes (login/register)
-│   │   ├── (dashboard)/  # Role-specific dashboards
-│   │   │   ├── admin/    # Admin dashboard and functionality
-│   │   │   ├── helpdesk/ # Helpdesk dashboard and functionality
-│   │   │   └── user/     # User dashboard and functionality
-│   │   └── api/          # API routes for data operations
-│   ├── components/       # Reusable React components
-│   ├── context/          # React context providers
-│   ├── lib/              # Library code, database models
-│   └── utils/            # Utility functions
-├── .env.local            # Environment variables (create this)
-├── next.config.js        # Next.js configuration
-├── package.json          # Project dependencies and scripts
-└── tailwind.config.js    # Tailwind CSS configuration
-```
-
-## Common Development Tasks
-
-### Creating a New User
-
-1. Register via the application interface
-2. OR manually create in the database:
-
-```sql
-INSERT INTO users (id, name, email, password, role)
-VALUES (
-  UUID(),
-  'New User',
-  'newuser@example.com',
-  '$2a$10$...', -- bcrypt hashed password
-  'user'
-);
-```
-
-### Changing a User's Role
-
-```sql
-UPDATE users
-SET role = 'admin'  -- or 'helpdesk' or 'user'
-WHERE email = 'user@example.com';
-```
-
-### Creating a Custom Ticket Type
-
-1. Log in as an admin
-2. Navigate to Admin Dashboard → Form Templates
-3. Click "Create New Template"
-4. Define the fields and submit
-
-### Troubleshooting
-
-#### Database Connection Issues
-
-If you're having trouble connecting to MariaDB:
-
-```bash
-# Check if MariaDB is running
-sudo systemctl status mariadb
-
-# Restart MariaDB if needed
-sudo systemctl restart mariadb
-
-# Test the database connection
-npm run test-db
-```
-
-#### Table Creation Issues
-
-If you encounter issues creating tables:
-
-```bash
-# View MariaDB error log
-sudo tail -f /var/log/mysql/error.log
-
-# Clean and recreate the database tables
-npm run clean-db
-npm run setup-db
-```
-
-#### User Authentication Problems
-
-If login isn't working:
-
-1. Verify the database connection is working
-2. Check that the `NEXTAUTH_SECRET` and `NEXTAUTH_URL` environment variables are set correctly
-3. Try resetting a user's password in the database:
-
-```sql
--- Replace with bcrypt hash of 'NewPassword123!'
-UPDATE users
-SET password = '$2a$10$...'
-WHERE email = 'user@example.com';
-```
-
-#### Assignment Issues
-
-If helpdesk assignments aren't working:
-
-```bash
-# Update the assignments schema
-npm run update-schema
-
-# Debug helpdesk user assignments
-node scripts/debug-helpdesk-users.js
-```
-
-## Database GUI Tools
-
-You can also use GUI tools to manage your MariaDB database:
-
-- DBeaver: Universal database manager (supports MariaDB/MySQL)
-- MySQL Workbench: Official MySQL GUI tool (works with MariaDB)
-- Adminer: Lightweight web-based database manager
-
-## Development Tips
-
-### Running in Production Mode
-
-To run the application in production mode:
-
-```bash
+# Build for production
 npm run build
+
+# Start production server
 npm start
+
+# Run the unified setup script (database, tables, migrations, default data)
+npm run setup
+
+# Test database connection and schema
+npm run test-db
+
+# Clean database (drops all tables - USE WITH CAUTION)
+npm run clean-db
 ```
 
-### Customizing Appearance
+## Troubleshooting
 
-The application uses Tailwind CSS for styling. You can customize the appearance by editing:
+If you encounter any issues with the application:
 
-- `tailwind.config.js` - For theme colors and configuration
-- CSS files in the component directories
+1. **Database Connection Issues**:
+   - Verify your database credentials in `.env.local`
+   - Ensure your MariaDB/MySQL server is running and accessible
+   - Run `npm run test-db` to verify the connection and schema
+   - Check port access if you're running in a container or with firewall restrictions
 
-### Adding New Features
+2. **Missing Tables or Features**:
+   - The `npm run setup` script should create all necessary tables
+   - If you experience errors about missing tables, try running `npm run setup` again
+   - For detailed database debugging, check the scripts in the `scripts/` directory
 
-When adding new features:
+3. **Login Problems**:
+   - Make sure the database contains user records (check with `npm run test-db`)
+   - Check that NEXTAUTH_SECRET is set in your `.env.local` file
+   - Verify that your NEXTAUTH_URL matches your actual URL (including http/https)
 
-1. Create API endpoints in `src/app/api/`
-2. Add React components in `src/components/`
-3. Update pages in `src/app/(dashboard)/`
-4. Test thoroughly with different user roles
+4. **Port Already in Use**:
+   - If port 3000 is already in use, you can kill the process with:
+     ```bash
+     sudo fuser -k 3000/tcp  # Linux
+     ```
+   - Or configure a different port in your package.json:
+     ```
+     "dev": "next dev -p 3001"
+     ```
+
+## Project Structure
+
+- `/src/app` - Next.js app directory structure with routes and API endpoints
+- `/src/components` - Reusable UI components
+- `/src/context` - Context providers (authentication, theme, etc.)
+- `/src/lib` - Utility functions and database connectors
+- `/scripts` - Database setup and maintenance scripts
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For issues and support, please open an issue in the GitHub repository.

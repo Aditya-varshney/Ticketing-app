@@ -489,6 +489,53 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                 ))}
               </div>
             </div>
+
+            {ticket.priority && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                  Priority
+                </h3>
+                <PriorityBadge priority={ticket.priority} className="text-sm" />
+              </div>
+            )}
+
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Submitted By
+              </h3>
+              <div className="flex items-center">
+                <Avatar 
+                  src={null} 
+                  alt={ticket.submitter?.name || "User"} 
+                  size="sm" 
+                  className="mr-2"
+                />
+                <div>
+                  <p className="text-sm font-medium">{ticket.submitter?.name || "Unknown"}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {ticket.submitter?.email || "Unknown email"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Submission Date
+              </h3>
+              <p className="text-sm">
+                {new Date(ticket.created_at).toLocaleString()}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Last Updated
+              </h3>
+              <p className="text-sm">
+                {new Date(ticket.updated_at).toLocaleString()}
+              </p>
+            </div>
           </div>
         </div>
       ) : (

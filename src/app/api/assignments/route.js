@@ -211,6 +211,8 @@ export async function POST(request) {
     if (existingAssignment) {
       // Update existing assignment
       existingAssignment.helpdesk_id = helpdeskId;
+      existingAssignment.assigned_by = user.id;
+      existingAssignment.assigned_at = new Date();
       await existingAssignment.save();
       
       return NextResponse.json({

@@ -47,9 +47,28 @@ export async function GET(request) {
     // Build the where clause
     let whereClause = {};
     
-    // If ticketId is provided, that's our primary filter
+    // If ticketId is provided
     if (ticketId) {
-      whereClause.ticket_id = ticketId;
+      // For ticketId: Admin can see all messages for that ticket
+      if (user.role === 'admin') {
+        whereClause.ticket_id = ticketId;
+      } 
+      // Helpdesk can see messages for that ticket where they are involved or between user and any helpdesk
+      else if (user.role === 'helpdesk') {
+        whereClause = {
+          ticket_id: ticketId,
+        };
+      } 
+      // Users can only see messages related to their tickets
+      else {
+        whereClause = {
+          ticket_id: ticketId,
+          [Op.or]: [
+            { sender: session.user.id },
+            { receiver: session.user.id }
+          ]
+        };
+      }
     } 
     // If only userId is provided but no ticketId
     else if (userId) {

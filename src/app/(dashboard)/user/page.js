@@ -568,6 +568,9 @@ export default function UserDashboard() {
                                 + {Object.keys(ticket.form_data).length - 3} more fields
                               </div>
                             )}
+                            <div className="text-gray-500 dark:text-gray-400 text-xs mt-2">
+                              <span className="font-medium">Last Updated:</span> {formatDate(ticket.updated_at)}
+                            </div>
                           </div>
                         )}
                       </div>

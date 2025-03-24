@@ -7,14 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup-db": "node scripts/setup-db.js",
+    "setup": "node scripts/unified-setup.js",
     "clean-db": "node scripts/clean-db.js",
-    "test-db": "node scripts/test-db.js",
-    "update-schema": "node scripts/update-assignments-schema.js",
-    "test-db:all": "node scripts/test-db.js --all",
-    "test-db:users": "node scripts/test-db.js --users",
-    "test-db:forms": "node scripts/test-db.js --forms",
-    "test-db:tables": "node scripts/test-db.js --tables"
+    "test-db": "node scripts/test-db.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
