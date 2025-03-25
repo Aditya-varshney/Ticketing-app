@@ -59,6 +59,16 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       }
       
       const data = await response.json();
+      
+      // Ensure form_data is properly parsed if it's a string
+      if (data.form_data && typeof data.form_data === 'string') {
+        try {
+          data.form_data = JSON.parse(data.form_data);
+        } catch (e) {
+          console.error('Error parsing form data:', e);
+        }
+      }
+      
       setTicket(data);
       setStatus(data.status || 'open');
       
@@ -553,6 +563,59 @@ export default function HelpdeskTicketDetailsPage({ params }) {
               <p className="text-sm">
                 {new Date(ticket.updated_at).toLocaleString()}
               </p>
+            </div>
+
+            {/* Ticket information */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4">Ticket Information</h3>
+              
+              {loadingTicket ? (
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : ticket ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">ID</p>
+                      <p className="font-medium">{ticketId}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                      <StatusBadge status={ticket.status || 'open'} />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Priority</p>
+                      <PriorityBadge priority={ticket.priority || 'medium'} />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Date Submitted</p>
+                      <p className="font-medium">
+                        {new Date(ticket.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Form Fields - Added to display ticket form data */}
+                  <div className="mt-6 border-t pt-4">
+                    <h4 className="text-md font-semibold mb-3">Form Details</h4>
+                    {ticket.form_data && typeof ticket.form_data === 'object' ? (
+                      <div className="grid grid-cols-2 gap-4">
+                        {Object.entries(ticket.form_data).map(([key, value]) => (
+                          <div key={key} className="border-b pb-2">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{key.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                            <p className="font-medium">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500">No form details available</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500">Ticket not found</p>
+              )}
             </div>
           </div>
         </div>

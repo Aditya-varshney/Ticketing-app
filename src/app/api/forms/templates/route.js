@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { connectToDatabase } from "@/lib/mariadb/connect";
 import { FormTemplate, FormSubmission, User } from "@/lib/mariadb/models";
+import { v4 as uuidv4 } from 'uuid';
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -80,30 +81,56 @@ export async function GET(request) {
     // Otherwise return all templates
     try {
       const templates = await FormTemplate.findAll({
-        order: [['created_at', 'DESC']]
+        order: [['createdAt', 'DESC']]
       });
       
-      // Get creators information separately
-      const templatesWithCreators = await Promise.all(
-        templates.map(async (template) => {
-          const plainTemplate = template.get({ plain: true });
-          
-          try {
-            const creator = await User.findByPk(template.created_by, {
-              attributes: ['id', 'name', 'email']
-            });
-            
-            return {
-              ...plainTemplate,
-              creator: creator ? creator.get({ plain: true }) : null
-            };
-          } catch (error) {
-            return plainTemplate;
+      // Process templates to parse fields
+      const processedTemplates = templates.map(template => {
+        const plainTemplate = template.get({ plain: true });
+        let parsedFields = [];
+        
+        try {
+          if (typeof plainTemplate.fields === 'string') {
+            parsedFields = JSON.parse(plainTemplate.fields);
+          } else if (Array.isArray(plainTemplate.fields)) {
+            parsedFields = plainTemplate.fields;
           }
-        })
-      );
+          
+          // Process fields to handle dropdown options
+          parsedFields = parsedFields.map(field => {
+            if (field.type === 'select' && field.options) {
+              // Ensure options are in string format
+              if (typeof field.options !== 'string') {
+                field.options = String(field.options);
+              }
+              
+              // Clean up options format
+              const cleanOptions = field.options
+                .split(',')
+                .map(opt => opt.trim())
+                .filter(opt => opt !== '')
+                .join(', ');
+                
+              return {
+                ...field,
+                options: cleanOptions
+              };
+            }
+            return field;
+          });
+          
+        } catch (error) {
+          console.error(`Error parsing fields for template ${plainTemplate.id}:`, error);
+          parsedFields = [];
+        }
+        
+        return {
+          ...plainTemplate,
+          fields: parsedFields
+        };
+      });
       
-      return NextResponse.json(templatesWithCreators);
+      return NextResponse.json({ templates: processedTemplates });
     } catch (listError) {
       console.error("Error listing all templates:", listError);
       return NextResponse.json(
@@ -119,6 +146,38 @@ export async function GET(request) {
     );
   }
 }
+
+// Process fields to ensure proper format
+const processFields = (fields) => {
+  if (!fields || !Array.isArray(fields)) return [];
+  
+  return fields.map(field => {
+    // Handle dropdown/select type fields
+    if (field.type === 'select') {
+      // Ensure options exists and is properly formatted
+      if (!field.options) {
+        field.options = '';
+      } else if (typeof field.options !== 'string') {
+        // If options came in non-string format, convert to string
+        field.options = String(field.options);
+      }
+      
+      // Clean up options - remove empty entries, trim whitespace
+      const cleanOptions = field.options
+        .split(',')
+        .map(opt => opt.trim())
+        .filter(opt => opt !== '')
+        .join(', ');
+      
+      return {
+        ...field,
+        options: cleanOptions
+      };
+    }
+    
+    return field;
+  });
+};
 
 // Create a new form template
 export async function POST(request) {
@@ -172,19 +231,29 @@ export async function POST(request) {
       );
     }
     
-    // Create with a simpler approach to avoid potential issues
+    // Generate a new ID for the template
+    const templateId = uuidv4();
+    
+    // Process fields to ensure they have all required properties
+    const processedFields = processFields(fields);
+    
+    // Create the template
     const template = await FormTemplate.create({
+      id: templateId,
       name,
-      fields: JSON.stringify(fields), // Explicitly stringify fields
+      fields: JSON.stringify(processedFields),
       created_by: session.user.id
     });
     
     console.log("Template created successfully:", template.id);
     
-    return NextResponse.json(
-      { message: "Template created successfully", template },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      message: "Form template created successfully",
+      template: {
+        ...template.get({ plain: true }),
+        fields: processedFields
+      }
+    }, { status: 201 });
   } catch (error) {
     console.error("Error creating form template:", error);
     console.error("Error stack:", error.stack);
@@ -256,15 +325,20 @@ export async function PUT(request) {
       );
     }
     
-    // Update the template
-    await existingTemplate.update({
-      name,
-      fields: JSON.stringify(fields)
-    });
+    // Process fields to ensure they have all required properties
+    const processedFields = processFields(fields);
     
-    return NextResponse.json({ 
-      message: "Template updated successfully", 
-      template: existingTemplate
+    // Update the template
+    existingTemplate.name = name;
+    existingTemplate.fields = JSON.stringify(processedFields);
+    await existingTemplate.save();
+    
+    return NextResponse.json({
+      message: "Form template updated successfully",
+      template: {
+        ...existingTemplate.get({ plain: true }),
+        fields: processedFields
+      }
     });
   } catch (error) {
     console.error("Error updating form template:", error);
@@ -351,7 +425,7 @@ export async function DELETE(request) {
     // Delete the template
     await template.destroy();
     
-    return NextResponse.json({ message: "Template deleted successfully" });
+    return NextResponse.json({ message: "Form template deleted successfully" });
   } catch (error) {
     console.error("Error deleting form template:", error);
     return NextResponse.json(

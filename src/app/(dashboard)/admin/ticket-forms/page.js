@@ -206,7 +206,7 @@ export default function TicketFormsPage() {
             {ticketTypes.map(form => (
               <div key={form.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 <div 
-                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors"
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                   onClick={() => toggleForm(form.id)}
                 >
                   <div className="flex items-center space-x-2">
@@ -249,24 +249,36 @@ export default function TicketFormsPage() {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
                           <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                             <tr>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Name</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Type</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-1/3">Required</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Required</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Options</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                            {form.fields && Array.isArray(form.fields) ? form.fields.map((field) => (
-                              <tr key={field.id}>
-                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white break-words">{field.name}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">{field.type}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
-                                  {field.required ? 'Yes' : 'No'}
-                                </td>
-                              </tr>
-                            )) : (
+                            {Array.isArray(form.fields) && form.fields.length > 0 ? (
+                              form.fields.map((field) => (
+                                <tr key={field.id}>
+                                  <td className="px-4 py-2">{field.name}</td>
+                                  <td className="px-4 py-2 capitalize">{field.type}</td>
+                                  <td className="px-4 py-2">{field.required ? 'Yes' : 'No'}</td>
+                                  <td className="px-4 py-2">
+                                    {field.type === 'select' && field.options ? (
+                                      <div className="max-w-xs overflow-hidden">
+                                        <span className="text-gray-600 dark:text-gray-400 text-sm">
+                                          {field.options}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400 dark:text-gray-600">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
                               <tr>
-                                <td colSpan="3" className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                  Fields data not available or in incorrect format
+                                <td colSpan="4" className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                                  No fields defined for this form
                                 </td>
                               </tr>
                             )}
@@ -280,7 +292,11 @@ export default function TicketFormsPage() {
                         onClick={() => router.push(`/admin/create-ticket?formId=${form.id}`)}
                         variant="primary"
                         size="md"
+                        className="flex items-center gap-2 hover:bg-blue-700 dark:hover:bg-blue-800"
                       >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
                         Create Ticket Using This Form
                       </Button>
                     </div>

@@ -21,10 +21,35 @@ export default function UserDashboard() {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [startTime, setStartTime] = useState(null);
+  const [notification, setNotification] = useState(null);
   
   // Store the start time to measure loading duration - client-side only
   useEffect(() => {
     setStartTime(Date.now());
+  }, []);
+  
+  // Check for ticketSubmitted query parameter in URL for showing success notification
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const submitted = params.get('ticketSubmitted');
+      
+      if (submitted === 'true') {
+        setNotification({
+          type: 'success',
+          message: 'Your ticket has been submitted successfully!'
+        });
+        
+        // Clear the parameter from URL after showing notification
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+        
+        // Clear notification after 5 seconds
+        setTimeout(() => {
+          setNotification(null);
+        }, 5000);
+      }
+    }
   }, []);
   
   // Add safety timeout to prevent infinite loading
@@ -331,7 +356,7 @@ export default function UserDashboard() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            <Button 
+            <Button
               onClick={handleRaiseTicket}
               variant="success"
               className="px-6 py-2.5 text-base font-medium"
@@ -342,6 +367,16 @@ export default function UserDashboard() {
           </div>
         </div>
       </div>
+
+      {notification && (
+        <div className={`mb-4 p-4 mx-4 rounded-md ${
+          notification.type === 'success' 
+            ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400' 
+            : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400'
+        }`}>
+          {notification.message}
+        </div>
+      )}
 
       <div className="flex h-[calc(100vh-140px)] mx-4">
         {/* Left side - Chat section */}
@@ -582,6 +617,15 @@ export default function UserDashboard() {
                           <StatusBadge status={ticket.status} />
                           <PriorityBadge priority={ticket.priority} />
                         </div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent triggering the parent click
+                            router.push(`/user/tickets/${ticket.id}`);
+                          }}
+                          className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          View Details
+                        </button>
                       </div>
                     </div>
                   </div>

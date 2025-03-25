@@ -45,7 +45,8 @@ export default function TicketCreationForm() {
     id: '', // Will be auto-generated
     name: '',
     type: 'text',
-    required: false
+    required: false,
+    options: ''
   });
 
   // Handle custom ticket type input
@@ -114,15 +115,26 @@ export default function TicketCreationForm() {
 
   // Handle changes to field values in the ticket form
   const handleFieldChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     
-    setTicketData(prev => ({
-      ...prev,
-      fields: {
-        ...prev.fields,
-        [name]: value
-      }
-    }));
+    // Special handling for dropdown/select values
+    if (type === 'select-one') {
+      setTicketData(prev => ({
+        ...prev,
+        fields: {
+          ...prev.fields,
+          [name]: value
+        }
+      }));
+    } else {
+      setTicketData(prev => ({
+        ...prev,
+        fields: {
+          ...prev.fields,
+          [name]: value
+        }
+      }));
+    }
   };
 
   // Switch to create new ticket type mode
@@ -135,12 +147,21 @@ export default function TicketCreationForm() {
     });
   };
 
-  // Add a field to the new ticket type being created
+  // Handle new field addition
   const handleAddField = () => {
     if (!newField.name) {
       setNotification({
         type: 'error',
         message: 'Field Name is required'
+      });
+      return;
+    }
+    
+    // For select type, ensure options are provided
+    if (newField.type === 'select' && (!newField.options || newField.options.trim() === '')) {
+      setNotification({
+        type: 'error',
+        message: 'Options are required for dropdown fields'
       });
       return;
     }
@@ -159,7 +180,8 @@ export default function TicketCreationForm() {
       id: '',
       name: '',
       type: 'text',
-      required: false
+      required: false,
+      options: ''
     });
   };
 
@@ -181,7 +203,16 @@ export default function TicketCreationForm() {
     }));
   };
 
-  // Load ticket types and if in edit mode, populate the form with existing data
+  // Helper function to parse options string into array
+  const parseOptions = (optionsString) => {
+    if (!optionsString) return [];
+    return optionsString
+      .split(',')
+      .map(opt => opt.trim())
+      .filter(opt => opt !== '');
+  };
+
+  // Load ticket types and ensure proper handling of fields
   useEffect(() => {
     try {
       // First load all ticket types
@@ -217,6 +248,17 @@ export default function TicketCreationForm() {
               if (!Array.isArray(fields)) {
                 fields = [];
               }
+              
+              // Ensure dropdown fields have their options properly formatted
+              fields = fields.map(field => {
+                if (field.type === 'select' && field.options) {
+                  return {
+                    ...field,
+                    parsedOptions: parseOptions(field.options)
+                  };
+                }
+                return field;
+              });
               
               return {
                 ...template,
@@ -299,12 +341,25 @@ export default function TicketCreationForm() {
     }
   }, [formId, isEditMode]);
 
-  // Save the new ticket type or update existing one
+  // Form submission - ensure fields are properly formatted
   const handleSaveTicketType = async () => {
     if (!newTicketType.name || newTicketType.fields.length === 0) {
       setNotification({
         type: 'error',
         message: 'Ticket Type Name and at least one field are required'
+      });
+      return;
+    }
+    
+    // Validate dropdown fields have options
+    const invalidDropdowns = newTicketType.fields.filter(
+      field => field.type === 'select' && (!field.options || field.options.trim() === '')
+    );
+    
+    if (invalidDropdowns.length > 0) {
+      setNotification({
+        type: 'error',
+        message: `The following dropdown fields need options: ${invalidDropdowns.map(f => f.name).join(', ')}`
       });
       return;
     }
@@ -318,6 +373,24 @@ export default function TicketCreationForm() {
         ? `/api/forms/templates?id=${newTicketType.id}`
         : '/api/forms/templates';
       
+      // Process fields to ensure dropdown options are properly formatted
+      const processedFields = newTicketType.fields.map(field => {
+        if (field.type === 'select') {
+          // Ensure options are trimmed and no empty options
+          const cleanOptions = field.options
+            .split(',')
+            .map(opt => opt.trim())
+            .filter(opt => opt !== '')
+            .join(', ');
+            
+          return {
+            ...field,
+            options: cleanOptions
+          };
+        }
+        return field;
+      });
+      
       // Save to backend API
       const response = await fetch(url, {
         method,
@@ -326,7 +399,7 @@ export default function TicketCreationForm() {
         },
         body: JSON.stringify({
           name: newTicketType.name,
-          fields: newTicketType.fields
+          fields: processedFields
         }),
       });
       
@@ -350,12 +423,12 @@ export default function TicketCreationForm() {
       if (isEditMode) {
         // Replace the edited template
         updatedTicketTypes = ticketTypes.map(type => 
-          type.id === newTicketType.id ? { ...newTicketType } : type
+          type.id === newTicketType.id ? { ...newTicketType, fields: processedFields } : type
         );
       } else {
         // Add new template
         const typeId = responseData.template?.id || generateUniqueId(newTicketType.name, ticketTypes.map(t => t.id), '-');
-        updatedTicketTypes = [...ticketTypes, { ...newTicketType, id: typeId }];
+        updatedTicketTypes = [...ticketTypes, { ...newTicketType, id: typeId, fields: processedFields }];
       }
       
       setTicketTypes(updatedTicketTypes);
@@ -647,6 +720,21 @@ export default function TicketCreationForm() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           required={field.required}
                         />
+                      ) : field.type === 'select' ? (
+                        <select
+                          name={field.id}
+                          value={ticketData.fields[field.id] || ''}
+                          onChange={handleFieldChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          required={field.required}
+                        >
+                          <option value="">Select an option</option>
+                          {field.options && parseOptions(field.options).map((option, idx) => (
+                            <option key={idx} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
                         <input
                           type={field.type}
@@ -761,18 +849,39 @@ export default function TicketCreationForm() {
                       Field Type
                     </label>
                     <select
+                      id="field-type"
                       name="type"
                       value={newField.type}
                       onChange={handleNewFieldChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     >
                       <option value="text">Text</option>
+                      <option value="textarea">Text Area</option>
                       <option value="number">Number</option>
                       <option value="email">Email</option>
+                      <option value="tel">Phone</option>
                       <option value="date">Date</option>
-                      <option value="textarea">Text Area</option>
+                      <option value="select">Dropdown</option>
                     </select>
                   </div>
+                  
+                  {/* Show options input only for select/dropdown type fields */}
+                  {newField.type === 'select' && (
+                    <div className="mb-4">
+                      <label htmlFor="field-options" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Options (comma separated)
+                      </label>
+                      <input
+                        type="text"
+                        id="field-options"
+                        name="options"
+                        value={newField.options || ''}
+                        onChange={handleNewFieldChange}
+                        placeholder="Option 1, Option 2, Option 3"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      />
+                    </div>
+                  )}
                   
                   <div className="flex items-end">
                     <div className="flex items-center h-10">
@@ -859,6 +968,55 @@ export default function TicketCreationForm() {
               >
                 {isEditMode ? 'Update Ticket Type' : 'Save Ticket Type'}
               </Button>
+            </div>
+          </div>
+
+          <div className="my-8">
+            <h3 className="text-lg font-medium mb-6">Preview</h3>
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700">
+                <h4 className="text-base font-semibold">{newTicketType.name || 'New Form Template'}</h4>
+              </div>
+              <div className="p-4 space-y-6">
+                {newTicketType.fields.map(field => (
+                  <div key={field.id} className="relative">
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {field.name}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    
+                    {field.type === 'select' ? (
+                      <select
+                        name={field.id}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        required={field.required}
+                        disabled
+                      >
+                        <option value="" disabled selected>Select an option</option>
+                        {parseOptions(field.options).map((option, i) => (
+                          <option key={i} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    ) : field.type === 'textarea' ? (
+                      <textarea
+                        name={field.id}
+                        rows="3"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        required={field.required}
+                        disabled
+                      />
+                    ) : (
+                      <input
+                        type={field.type}
+                        name={field.id}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        required={field.required}
+                        disabled
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -4,6 +4,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
+import FormField from '@/components/FormField';
+
+// Helper function to parse options string into array
+const parseOptions = (optionsString) => {
+  if (!optionsString) return [];
+  return optionsString
+    .split(',')
+    .map(opt => opt.trim())
+    .filter(opt => opt !== '');
+};
 
 export default function FillTicketFormPage({ params }) {
   const templateId = params.id;
@@ -33,30 +43,57 @@ export default function FillTicketFormPage({ params }) {
       
       try {
         setLoadingTemplate(true);
-        const response = await fetch(`/api/forms/templates?id=${templateId}`);
+        const response = await fetch(`/api/forms/templates/${templateId}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch form template');
         }
         
         const data = await response.json();
+        console.log('Template data received:', data);
+        
+        // Process the template data
+        const processedTemplate = data.template || data;
         
         // Ensure fields is always an array
-        if (!data.fields || !Array.isArray(data.fields)) {
-          // If fields is a string (JSON), try to parse it
-          if (typeof data.fields === 'string') {
+        let templateFields = [];
+        
+        if (processedTemplate.fields) {
+          if (Array.isArray(processedTemplate.fields)) {
+            templateFields = processedTemplate.fields;
+          } else if (typeof processedTemplate.fields === 'string') {
             try {
-              data.fields = JSON.parse(data.fields);
+              templateFields = JSON.parse(processedTemplate.fields);
             } catch (e) {
               console.error('Error parsing fields JSON:', e);
-              data.fields = [];
+              templateFields = [];
             }
-          } else {
-            data.fields = [];
           }
         }
         
-        setTemplate(data);
+        // Process fields to ensure dropdown options are correctly formatted
+        templateFields = templateFields.map(field => {
+          if (field.type === 'select' && field.options) {
+            // Ensure options is a string
+            const options = typeof field.options === 'string' 
+              ? field.options 
+              : String(field.options);
+              
+            return {
+              ...field,
+              options
+            };
+          }
+          return field;
+        });
+        
+        console.log('Processed template fields:', templateFields);
+        
+        // Set the processed template
+        setTemplate({
+          ...processedTemplate,
+          fields: templateFields
+        });
       } catch (error) {
         console.error('Error fetching form template:', error);
         setNotification({
@@ -98,10 +135,10 @@ export default function FillTicketFormPage({ params }) {
   }, [isAuthenticated, templateId]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -153,7 +190,7 @@ export default function FillTicketFormPage({ params }) {
       
       // Redirect after short delay
       setTimeout(() => {
-        router.push('/user/tickets');
+        router.push('/user?ticketSubmitted=true');
       }, 2000);
     } catch (error) {
       console.error('Error submitting ticket:', error);
@@ -215,8 +252,8 @@ export default function FillTicketFormPage({ params }) {
         {notification && (
           <div className={`mb-6 p-4 rounded-md ${
             notification.type === 'success' 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
+              ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400' 
+              : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400'
           }`}>
             {notification.message}
           </div>
@@ -224,30 +261,17 @@ export default function FillTicketFormPage({ params }) {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {Array.isArray(template.fields) && template.fields.map(field => (
-            <div key={field.id}>
+            <div key={field.id} className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {field.name} {field.required && '*'}
+                {field.name} {field.required && <span className="text-red-500">*</span>}
               </label>
               
-              {field.type === 'textarea' ? (
-                <textarea
-                  name={field.id}
-                  value={formData[field.id] || ''}
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required={field.required}
-                />
-              ) : (
-                <input
-                  type={field.type}
-                  name={field.id}
-                  value={formData[field.id] || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required={field.required}
-                />
-              )}
+              <FormField
+                field={field}
+                value={formData[field.id]}
+                onChange={handleChange}
+                darkMode={true}
+              />
             </div>
           ))}
 
@@ -272,3 +296,4 @@ export default function FillTicketFormPage({ params }) {
     </div>
   );
 }
+

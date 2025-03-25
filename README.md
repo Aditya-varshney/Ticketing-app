@@ -136,7 +136,3 @@ If you encounter any issues with the application:
 - `/src/context` - Context providers (authentication, theme, etc.)
 - `/src/lib` - Utility functions and database connectors
 - `/scripts` - Database setup and maintenance scripts
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
