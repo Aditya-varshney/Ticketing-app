@@ -81,7 +81,7 @@ export async function GET(request) {
     // Otherwise return all templates
     try {
       const templates = await FormTemplate.findAll({
-        order: [['createdAt', 'DESC']]
+        order: [['created_at', 'DESC']]
       });
       
       // Process templates to parse fields

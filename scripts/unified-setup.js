@@ -216,6 +216,22 @@ async function runUnifiedSetup() {
     });
     log('Form submissions table created or already exists', 'success');
 
+    // Check for status column in form_submissions
+    const [statusExists] = await connection.query(
+      `SHOW COLUMNS FROM form_submissions LIKE 'status'`
+    );
+
+    if (statusExists.length === 0) {
+      log('Adding status column to form_submissions table...');
+      await connection.query(`
+        ALTER TABLE form_submissions 
+        ADD COLUMN status VARCHAR(20) DEFAULT 'active'
+      `);
+      log('Added status column to form_submissions table', 'success');
+    } else {
+      log('status column already exists in form_submissions table', 'info');
+    }
+
     // Ticket assignments table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS ticket_assignments (

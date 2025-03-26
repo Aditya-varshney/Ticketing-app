@@ -26,6 +26,18 @@ export default function HelpdeskTicketDetailsPage({ params }) {
   const [sendingMessage, setSendingMessage] = useState(false);
   const messagesEndRef = useRef(null);
   
+  // Add new state variables at the top of your component
+  const [customReply, setCustomReply] = useState('');
+  const [showCustomReplyInput, setShowCustomReplyInput] = useState(false);
+  const [customQuickReplies, setCustomQuickReplies] = useState(() => {
+    // Try to load from localStorage if available (client-side only)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('customQuickReplies');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -261,6 +273,21 @@ export default function HelpdeskTicketDetailsPage({ params }) {
     }
   };
   
+  // Add function to handle adding a new custom quick reply
+  const addCustomQuickReply = () => {
+    if (customReply.trim()) {
+      const newReplies = [...customQuickReplies, customReply.trim()];
+      setCustomQuickReplies(newReplies);
+      setCustomReply('');
+      setShowCustomReplyInput(false);
+      
+      // Save to localStorage for persistence
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('customQuickReplies', JSON.stringify(newReplies));
+      }
+    }
+  };
+  
   // Early return if loading auth or user is not available yet
   if (loading || !user) {
     return (
@@ -328,9 +355,9 @@ export default function HelpdeskTicketDetailsPage({ params }) {
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       ) : ticket ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Main Content - Now spans 3 columns instead of 2 */}
+          <div className="lg:col-span-3">
             {/* Chat Section */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
@@ -356,7 +383,7 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                 </div>
               </div>
 
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg h-[500px] flex flex-col">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg h-[600px] flex flex-col">
                 <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
                   {loadingMessages ? (
                     <div className="flex justify-center items-center h-full">
@@ -427,64 +454,135 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                   )}
                 </div>
 
-                <form onSubmit={handleSendMessage} className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type your message..."
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      disabled={sendingMessage}
-                    />
-                    <Button
-                      type="submit"
-                      disabled={!newMessage.trim() || sendingMessage}
+                <div className="bg-white dark:bg-gray-800 p-3 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-xs font-medium text-gray-700 dark:text-gray-300">Quick Replies</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomReplyInput(!showCustomReplyInput)}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                     >
-                      {sendingMessage ? 'Sending...' : 'Send'}
-                    </Button>
+                      {showCustomReplyInput ? 'Cancel' : '+ Custom'}
+                    </button>
                   </div>
+                  
+                  {showCustomReplyInput && (
+                    <div className="mb-2 flex">
+                      <input
+                        type="text"
+                        value={customReply}
+                        onChange={(e) => setCustomReply(e.target.value)}
+                        placeholder="Type your custom reply..."
+                        className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-l-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomQuickReply}
+                        disabled={!customReply.trim()}
+                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded-r-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-wrap gap-1 overflow-x-auto pb-1">
+                    {/* Standard quick replies */}
+                    {quickReplies.map((reply, index) => (
+                      <button
+                        key={`standard-${index}`}
+                        onClick={() => sendQuickReply(reply)}
+                        disabled={sendingMessage}
+                        className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-full transition-colors duration-200 text-gray-700 dark:text-gray-300 whitespace-nowrap"
+                      >
+                        {reply}
+                      </button>
+                    ))}
+                    
+                    {/* Custom quick replies */}
+                    {customQuickReplies.map((reply, index) => (
+                      <div key={`custom-${index}`} className="relative group">
+                        <button
+                          onClick={() => sendQuickReply(reply)}
+                          disabled={sendingMessage}
+                          className="px-3 py-1 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 rounded-full transition-colors duration-200 text-blue-700 dark:text-blue-300 whitespace-nowrap"
+                        >
+                          {reply}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const newReplies = customQuickReplies.filter((_, i) => i !== index);
+                            setCustomQuickReplies(newReplies);
+                            localStorage.setItem('customQuickReplies', JSON.stringify(newReplies));
+                          }}
+                          className="absolute -top-1 -right-1 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-800/40 text-red-600 dark:text-red-400 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <form onSubmit={handleSendMessage} className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    disabled={sendingMessage}
+                  />
+                  <Button
+                    type="submit"
+                    disabled={!newMessage.trim() || sendingMessage}
+                  >
+                    {sendingMessage ? 'Sending...' : 'Send'}
+                  </Button>
                 </form>
               </div>
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Now spans 1 column and is narrower */}
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Ticket Information</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={fetchTicket}
-                  disabled={loadingTicket}
-                >
-                  {loadingTicket ? 'Refreshing...' : 'Refresh'}
-                </Button>
-              </div>
-              <dl className="space-y-4">
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
-                  <dd className="mt-1">
-                    <StatusBadge status={ticket.status} />
-                  </dd>
+              <h2 className="text-lg font-semibold mb-4">Ticket Summary</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                    <StatusBadge status={ticket.status || 'open'} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Priority</p>
+                    <PriorityBadge priority={ticket.priority || 'medium'} />
+                  </div>
                 </div>
+                
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Priority</dt>
-                  <dd className="mt-1">
-                    <PriorityBadge priority={ticket.priority} />
-                  </dd>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Submitted By</p>
+                  <div className="flex items-center mt-1">
+                    <Avatar 
+                      src={null} 
+                      alt={ticket.submitter?.name || "User"} 
+                      size="sm" 
+                      className="mr-2"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{ticket.submitter?.name || "Unknown"}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {ticket.submitter?.email || "Unknown email"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
+                
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Created</dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                    {new Date(ticket.created_at).toLocaleString()}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Assigned To</dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Assigned To</p>
+                  <div className="mt-1">
                     {ticket.assignment && ticket.assignment.helpdesk ? (
                       <div className="flex items-center">
                         <Avatar
@@ -497,76 +595,27 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                     ) : (
                       <span className="text-yellow-600 dark:text-yellow-400">Unassigned</span>
                     )}
-                  </dd>
+                  </div>
                 </div>
-              </dl>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Quick Replies</h2>
-              <div className="space-y-2">
-                {quickReplies.map((reply, index) => (
-                  <button
-                    key={index}
-                    onClick={() => sendQuickReply(reply)}
-                    disabled={sendingMessage}
-                    className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                  >
-                    {reply}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {ticket.priority && (
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                  Priority
-                </h3>
-                <PriorityBadge priority={ticket.priority} className="text-sm" />
-              </div>
-            )}
-
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Submitted By
-              </h3>
-              <div className="flex items-center">
-                <Avatar 
-                  src={null} 
-                  alt={ticket.submitter?.name || "User"} 
-                  size="sm" 
-                  className="mr-2"
-                />
-                <div>
-                  <p className="text-sm font-medium">{ticket.submitter?.name || "Unknown"}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {ticket.submitter?.email || "Unknown email"}
-                  </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Created</p>
+                    <p className="text-sm font-medium">
+                      {new Date(ticket.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Updated</p>
+                    <p className="text-sm font-medium">
+                      {new Date(ticket.updated_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Submission Date
-              </h3>
-              <p className="text-sm">
-                {new Date(ticket.created_at).toLocaleString()}
-              </p>
-            </div>
-
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Last Updated
-              </h3>
-              <p className="text-sm">
-                {new Date(ticket.updated_at).toLocaleString()}
-              </p>
-            </div>
-
-            {/* Ticket information */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
               <h3 className="text-lg font-semibold mb-4">Ticket Information</h3>
               
               {loadingTicket ? (

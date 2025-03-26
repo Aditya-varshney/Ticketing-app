@@ -685,11 +685,11 @@ export default function TicketCreationForm() {
                     required
                   >
                     <option value="">Select Ticket Type</option>
-                    {ticketTypes.map(type => (
+                    {Array.isArray(ticketTypes) ? ticketTypes.map(type => (
                       <option key={type.id} value={type.id}>
                         {type.name}
                       </option>
-                    ))}
+                    )) : <p>No templates available</p>}
                   </select>
                 </div>
               )}
@@ -698,55 +698,51 @@ export default function TicketCreationForm() {
             {!showCustomInput && selectedTicketType && (
               <>
                 {/* Dynamic fields based on selected ticket type */}
-                {ticketTypes
-                  .find(type => type.id === selectedTicketType)
-                  ?.fields && Array.isArray(ticketTypes
-                  .find(type => type.id === selectedTicketType)
-                  ?.fields) ? (
+                {Array.isArray(ticketTypes.find(type => type.id === selectedTicketType)?.fields) ? (
                   ticketTypes
-                  .find(type => type.id === selectedTicketType)
-                  ?.fields.map(field => (
-                    <div key={field.id}>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        {field.name} {field.required && '*'}
-                      </label>
-                      
-                      {field.type === 'textarea' ? (
-                        <textarea
-                          name={field.id}
-                          value={ticketData.fields[field.id] || ''}
-                          onChange={handleFieldChange}
-                          rows={4}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                          required={field.required}
-                        />
-                      ) : field.type === 'select' ? (
-                        <select
-                          name={field.id}
-                          value={ticketData.fields[field.id] || ''}
-                          onChange={handleFieldChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                          required={field.required}
-                        >
-                          <option value="">Select an option</option>
-                          {field.options && parseOptions(field.options).map((option, idx) => (
-                            <option key={idx} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type={field.type}
-                          name={field.id}
-                          value={ticketData.fields[field.id] || ''}
-                          onChange={handleFieldChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                          required={field.required}
-                        />
-                      )}
-                    </div>
-                  ))
+                    .find(type => type.id === selectedTicketType)
+                    ?.fields.map(field => (
+                      <div key={field.id}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          {field.name} {field.required && '*'}
+                        </label>
+                        
+                        {field.type === 'textarea' ? (
+                          <textarea
+                            name={field.id}
+                            value={ticketData.fields[field.id] || ''}
+                            onChange={handleFieldChange}
+                            rows={4}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            required={field.required}
+                          />
+                        ) : field.type === 'select' ? (
+                          <select
+                            name={field.id}
+                            value={ticketData.fields[field.id] || ''}
+                            onChange={handleFieldChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            required={field.required}
+                          >
+                            <option value="">Select an option</option>
+                            {Array.isArray(field.parsedOptions) ? field.parsedOptions.map((option, idx) => (
+                              <option key={idx} value={option}>
+                                {option}
+                              </option>
+                            )) : <p>No options available</p>}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type}
+                            name={field.id}
+                            value={ticketData.fields[field.id] || ''}
+                            onChange={handleFieldChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            required={field.required}
+                          />
+                        )}
+                      </div>
+                    ))
                 ) : (
                   <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md">
                     <p>There was an issue loading the fields for this form. Please try a different form or contact an administrator.</p>
@@ -799,9 +795,9 @@ export default function TicketCreationForm() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 >
                   <option value="">Create from scratch</option>
-                  {ticketTypes.map(type => (
+                  {Array.isArray(ticketTypes) ? ticketTypes.map(type => (
                     <option key={type.id} value={type.id}>{type.name}</option>
-                  ))}
+                  )) : <p>No templates available</p>}
                 </select>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Select an existing template to use as a starting point, or start from scratch.
@@ -993,9 +989,9 @@ export default function TicketCreationForm() {
                         disabled
                       >
                         <option value="" disabled selected>Select an option</option>
-                        {parseOptions(field.options).map((option, i) => (
+                        {Array.isArray(field.parsedOptions) ? field.parsedOptions.map((option, i) => (
                           <option key={i} value={option}>{option}</option>
-                        ))}
+                        )) : <p>No options available</p>}
                       </select>
                     ) : field.type === 'textarea' ? (
                       <textarea

@@ -39,6 +39,7 @@ export async function GET(request) {
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const submissionId = searchParams.get('id');
+    const includeRevoked = searchParams.get('includeRevoked') === 'true';
     
     // If an ID is provided, return that specific submission
     if (submissionId) {
@@ -90,7 +91,18 @@ export async function GET(request) {
     
     // For admins and helpdesk, return all submissions
     console.log(`GET /api/forms/submissions - User role: ${user.role}, fetching all submissions`);
+    
+    let whereClause = {};
+
+    // If revoked tickets should be excluded
+    if (!includeRevoked) {
+      whereClause.status = {
+        [Op.or]: [null, { [Op.ne]: 'revoked' }]
+      };
+    }
+    
     const submissions = await FormSubmission.findAll({
+      where: whereClause,
       include: [
         { model: FormTemplate, as: 'template' },
         { model: User, as: 'submitter', attributes: ['id', 'name', 'email'] }

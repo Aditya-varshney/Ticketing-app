@@ -170,12 +170,21 @@ export default function AdminDashboard() {
   const [assigning, setAssigning] = useState(false);
   const [notification, setNotification] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [currentHelpdeskFilter, setCurrentHelpdeskFilter] = useState(null);
 
   // New state for user management
   const [users, setUsers] = useState([]);
   const [helpdeskStaff, setHelpdeskStaff] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // New state for ticket types and tickets
+  const [ticketTypes, setTicketTypes] = useState([]);
+  const [tickets, setTickets] = useState([]);
+
+  // Add a new state variable for loading templates
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+
+  // Add a new state for search query
+  const [helpdeskSearchQuery, setHelpdeskSearchQuery] = useState('');
 
   // Verify user authentication and role
   useEffect(() => {
@@ -224,15 +233,21 @@ export default function AdminDashboard() {
             console.log("DEBUG: Using test helpdesk data for statistics:", debugHelpdesks.length);
             if (debugHelpdesks.length > 0) {
               // Use debug data for statistics
-              const helpdeskWorkloads = debugHelpdesks.map(helpdesk => ({
-                id: helpdesk.id,
-                name: helpdesk.name,
-                assignedTickets: 0,
-                totalTickets: 0,
-                openTickets: 0,
-                resolvedTickets: 0,
-                performance: 0
-              }));
+              const helpdeskWorkloads = debugHelpdesks.map((helpdesk, index) => {
+                // Generate some sample performance data for debug mode
+                // This creates varied performance metrics for visualization testing
+                const samplePerformance = [75, 60, 85, 40][index % 4];
+                
+                return {
+                  id: helpdesk.id,
+                  name: helpdesk.name,
+                  assignedTickets: Math.floor(Math.random() * 10) + 1, // 1-10 random tickets
+                  totalTickets: Math.floor(Math.random() * 15) + 5,    // 5-20 random tickets
+                  openTickets: Math.floor(Math.random() * 5),          // 0-4 open tickets
+                  resolvedTickets: Math.floor(Math.random() * 10),     // 0-9 resolved tickets
+                  performance: samplePerformance                       // Use predefined performance values
+                };
+              });
               
               setStatistics({
                 totalHelpdesks: debugHelpdesks.length,
@@ -300,32 +315,45 @@ export default function AdminDashboard() {
         
         // Calculate helpdesk workloads based on ticket assignments
         const helpdeskWorkloads = helpdesks.map(helpdesk => {
-          const helpdeskAssignments = assignments.filter(a => a.helpdesk_id === helpdesk.id);
-          const assignedTicketIds = helpdeskAssignments.map(a => a.ticket_id);
+          // Find tickets assigned to this helpdesk
+          const assignedTickets = assignments.filter(a => a.helpdesk_id === helpdesk.id);
+          const assignedTicketIds = assignedTickets.map(a => a.ticket_id);
+          
+          // Get the tickets to calculate metrics
           const helpdeskTickets = tickets.filter(t => assignedTicketIds.includes(t.id));
+          const openTickets = helpdeskTickets.filter(t => t.status === 'open' || !t.status).length;
+          const resolvedTickets = helpdeskTickets.filter(t => t.status === 'resolved').length;
+          const totalHandled = helpdeskTickets.length;
+          
+          // Calculate performance (resolved tickets as percentage of total handled)
+          // Add a safety check to prevent division by zero
+          let performance = totalHandled > 0 ? Math.round((resolvedTickets / totalHandled) * 100) : 0;
+          
+          // Ensure performance is a valid percentage between 0-100
+          performance = Math.max(0, Math.min(100, performance));
           
           return {
             id: helpdesk.id,
             name: helpdesk.name,
-            assignedTickets: helpdeskAssignments.length,
-            totalTickets: helpdeskTickets.length,
-            openTickets: helpdeskTickets.filter(t => t.status === 'open').length,
-            resolvedTickets: helpdeskTickets.filter(t => t.status === 'resolved').length,
-            performance: helpdeskTickets.length > 0 
-              ? Math.round((helpdeskTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length / helpdeskTickets.length) * 100) 
-              : 0
+            assignedTickets: totalHandled,
+            totalTickets: totalHandled,
+            openTickets,
+            resolvedTickets,
+            performance
           };
         });
         
         // Calculate form template usage
-        const formUsage = ticketTypes.map(type => {
-          const typeTickets = tickets.filter(t => t.form_template_id === type.id);
-          return {
-            id: type.id,
-            name: type.name,
-            count: typeTickets.length
-          };
-        }).sort((a, b) => b.count - a.count);
+        const formUsage = Array.isArray(ticketTypes) 
+          ? ticketTypes.map(type => {
+              const typeTickets = tickets.filter(t => t.form_template_id === type.id);
+              return {
+                id: type.id,
+                name: type.name,
+                count: typeTickets.length
+              };
+            }).sort((a, b) => b.count - a.count)
+          : [];
         
         // Update statistics with all collected data
         setStatistics({
@@ -347,11 +375,24 @@ export default function AdminDashboard() {
         console.log("Fetching statistics - END (real data)");
         
       } catch (error) {
-        console.error("Error fetching statistics:", error);
-        setNotification({
-          type: 'error',
-          message: `Failed to load dashboard data: ${error.message}`
-        });
+        console.error("Error calculating helpdesk performance:", error);
+        // Set default values to prevent UI breakage
+        const defaultHelpdeskWorkloads = helpdesks.map(helpdesk => ({
+          id: helpdesk.id,
+          name: helpdesk.name,
+          assignedTickets: 0,
+          totalTickets: 0,
+          openTickets: 0,
+          resolvedTickets: 0,
+          performance: 0 // Default to 0% if calculation fails
+        }));
+        
+        // Update statistics with the default values
+        setStatistics(prev => ({
+          ...prev, 
+          helpdesks: defaultHelpdeskWorkloads,
+          calculationErrorOccurred: true // Flag to show error message in UI
+        }));
       } finally {
         setLoadingStats(false);
       }
@@ -605,17 +646,16 @@ export default function AdminDashboard() {
     return [];
   };
 
-  // Function to filter helpdesk data
+  // Replace the getFilteredHelpdeskData function with a new implementation
   const getFilteredHelpdeskData = () => {
-    if (!currentHelpdeskFilter) {
+    if (!helpdeskSearchQuery) {
       return statistics.helpdesks;
     }
-    return statistics.helpdesks.filter(helpdesk => helpdesk.id === currentHelpdeskFilter);
-  };
-
-  // Helper for helpdesk filter selection
-  const handleHelpdeskFilterChange = (e) => {
-    setCurrentHelpdeskFilter(e.target.value === "" ? null : e.target.value);
+    
+    const query = helpdeskSearchQuery.toLowerCase();
+    return statistics.helpdesks.filter(helpdesk => 
+      helpdesk.name.toLowerCase().includes(query)
+    );
   };
 
   // Add a refresh function that can be called from a button click
@@ -634,6 +674,43 @@ export default function AdminDashboard() {
       }));
     }, 100);
   };
+
+  // Update the useEffect that fetches templates
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoadingTemplates(true);
+        // Fetch ticket templates
+        const templatesResponse = await fetch('/api/forms/templates');
+        if (templatesResponse.ok) {
+          const templatesData = await templatesResponse.json();
+          console.log("Admin dashboard - templates data:", templatesData);
+          
+          // Extract the templates array from the response
+          const templates = templatesData.templates || [];
+          setTicketTypes(Array.isArray(templates) ? templates : []);
+        } else {
+          // Handle error response
+          console.error("Error response from templates API:", templatesResponse.status);
+          setTicketTypes([]); // Set empty array on error
+        }
+        
+      } catch (error) {
+        console.error("Error fetching admin dashboard data:", error);
+        setTicketTypes([]); // Ensure ticketTypes is always an array even on error
+        setNotification({
+          type: 'error',
+          message: 'Failed to load dashboard data. Please try again.'
+        });
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
+    
+    if (isAuthenticated && user?.role === 'admin') {
+      fetchData();
+    }
+  }, [isAuthenticated, user]);
 
   if (loading || loadingStats) {
     return (
@@ -814,24 +891,38 @@ export default function AdminDashboard() {
           <div className="bg-gray-800 rounded-lg shadow p-6 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold text-white">Helpdesk Staff Performance</h2>
-              <div className="flex items-center space-x-2">
-                <label htmlFor="helpdeskFilter" className="text-sm text-gray-300">
-                  Filter by Helpdesk:
-                </label>
-                <select
-                  id="helpdeskFilter"
-                  value={currentHelpdeskFilter || ""}
-                  onChange={handleHelpdeskFilterChange}
-                  className="border border-gray-700 rounded-md shadow-sm py-1 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-700 text-white"
-                >
-                  <option value="">All Helpdesks</option>
-                  {statistics.helpdesks.map(helpdesk => (
-                    <option key={helpdesk.id} value={helpdesk.id}>
-                      {helpdesk.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="relative w-64">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                  </svg>
+                </div>
+                <input
+                  type="search"
+                  className="block w-full p-2 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                  placeholder="Search helpdesk staff..."
+                  value={helpdeskSearchQuery}
+                  onChange={(e) => setHelpdeskSearchQuery(e.target.value)}
+                />
+                {helpdeskSearchQuery && (
+                  <button 
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    onClick={() => setHelpdeskSearchQuery('')}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
+                )}
               </div>
+            </div>
+            
+            {/* Show search results count */}
+            <div className="mb-4 text-sm text-gray-400">
+              {helpdeskSearchQuery ? 
+                `Showing ${getFilteredHelpdeskData().length} of ${statistics.helpdesks.length} helpdesk staff matching "${helpdeskSearchQuery}"` : 
+                `Showing all ${statistics.helpdesks.length} helpdesk staff`
+              }
             </div>
             
             {statistics.helpdesks.length === 0 ? (
@@ -868,41 +959,35 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="bg-gray-800 divide-y divide-gray-700">
                     {getFilteredHelpdeskData().map(helpdesk => (
-                      <tr key={helpdesk.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                          {helpdesk.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {helpdesk.assignedTickets.length}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {helpdesk.totalTickets}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {helpdesk.openTickets}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {helpdesk.resolvedTickets}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                      <tr key={helpdesk.id} className="hover:bg-gray-700">
+                        <td className="py-2.5 px-4 whitespace-nowrap">{helpdesk.name}</td>
+                        <td className="py-2.5 px-4">{helpdesk.assignedTickets}</td>
+                        <td className="py-2.5 px-4">{helpdesk.totalTickets}</td>
+                        <td className="py-2.5 px-4">{helpdesk.openTickets}</td>
+                        <td className="py-2.5 px-4">{helpdesk.resolvedTickets}</td>
+                        <td className="py-2.5 px-4">
                           <div className="flex items-center">
-                            <span className="mr-2 text-sm font-medium text-white">
-                              {helpdesk.performance}%
-                            </span>
-                            <div className="w-24 h-2.5 bg-gray-700 rounded-full">
-                              <div className="h-2.5 bg-green-600 rounded-full" style={{ width: `${helpdesk.performance}%` }}></div>
+                            <div className="w-full h-2.5 bg-gray-700 rounded-full mr-2">
+                              <div 
+                                className={`h-2.5 rounded-full ${
+                                  helpdesk.performance >= 80 ? 'bg-green-600' : 
+                                  helpdesk.performance >= 50 ? 'bg-yellow-500' : 
+                                  'bg-red-500'
+                                }`}
+                                style={{ width: `${helpdesk.performance || 0}%` }}
+                              ></div>
                             </div>
+                            <span className="text-sm text-white font-medium">{helpdesk.performance || 0}%</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="w-24 h-2.5 bg-gray-700 rounded-full">
+                        <td className="py-2.5 px-4">
+                          <div className="w-16 h-2.5 bg-gray-700 rounded-full">
                             <div 
-                              className="h-2.5 bg-blue-600 rounded-full" 
-                              style={{ 
-                                width: maxHelpdeskWorkload > 0 
-                                  ? `${(helpdesk.totalTickets / maxHelpdeskWorkload) * 100}%`
-                                  : '0%'
-                              }}
+                              className={`h-2.5 rounded-full ${
+                                helpdesk.assignedTickets > 10 ? 'bg-red-600' : 
+                                helpdesk.assignedTickets > 5 ? 'bg-yellow-600' : 'bg-blue-600'
+                              }`}
+                              style={{ width: `${Math.min((helpdesk.assignedTickets / 15) * 100, 100)}%` }}
                             ></div>
                           </div>
                         </td>
@@ -914,104 +999,6 @@ export default function AdminDashboard() {
             )}
           </div>
         </>
-
-        {/* Recent Tickets Section */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Recent Tickets */}
-          <div className="bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4 text-white">Recently Assigned Tickets</h2>
-            {loadingTickets ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : recentTickets.length === 0 ? (
-              <p className="text-center text-gray-400 py-4">No recently assigned tickets found.</p>
-            ) : (
-              <div className="space-y-4">
-                {recentTickets.map(ticket => (
-                  <TicketNotification 
-                    key={ticket.id} 
-                    ticket={ticket} 
-                    onAssign={handleOpenAssignModal}
-                    isAssigned={true}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Unassigned Tickets */}
-          <div className="bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4 text-white">Unassigned Tickets</h2>
-            {loadingTickets ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : unassignedTickets.length === 0 ? (
-              <p className="text-center text-gray-400 py-4">No unassigned tickets found.</p>
-            ) : (
-              <div className="space-y-4">
-                {unassignedTickets.map(ticket => (
-                  <TicketNotification 
-                    key={ticket.id} 
-                    ticket={ticket} 
-                    onAssign={handleOpenAssignModal}
-                    isAssigned={false}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Ticket Assignment Modal */}
-        {showAssignModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4 text-white">Assign Ticket</h3>
-              <p className="mb-4 text-gray-300">
-                Ticket: {selectedTicket?.template?.name || 'Unknown Form'}
-              </p>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Select Helpdesk Staff
-                </label>
-                <select 
-                  value={selectedHelpdesk} 
-                  onChange={(e) => setSelectedHelpdesk(e.target.value)}
-                  className="w-full border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-700 text-white py-2"
-                >
-                  <option value="">Select a helpdesk staff</option>
-                  {helpdeskStaff.map(staff => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="flex justify-end space-x-2">
-                <Button 
-                  onClick={() => setShowAssignModal(false)}
-                  variant="outline"
-                  size="sm"
-                  disabled={assigning}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleAssignTicket}
-                  variant="primary"
-                  size="sm"
-                  disabled={!selectedHelpdesk || assigning}
-                >
-                  {assigning ? 'Assigning...' : 'Assign Ticket'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

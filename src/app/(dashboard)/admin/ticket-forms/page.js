@@ -13,6 +13,7 @@ export default function TicketFormsPage() {
   const [notification, setNotification] = useState(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const [expandedForm, setExpandedForm] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     // Check if user is authenticated and has the correct role
@@ -35,11 +36,15 @@ export default function TicketFormsPage() {
         }
         
         const data = await response.json();
-        setTicketTypes(data);
+        console.log("Admin dashboard - fetched ticket templates:", data);
+        
+        // Extract the templates array from the response
+        const templates = data.templates || [];
+        setTicketTypes(templates);
         
         // Also update localStorage for offline backup
         try {
-          localStorage.setItem('ticketTypes', JSON.stringify(data));
+          localStorage.setItem('ticketTypes', JSON.stringify(templates));
         } catch (e) {
           console.error('Failed to update localStorage:', e);
         }
@@ -49,7 +54,16 @@ export default function TicketFormsPage() {
         // Try to load from localStorage as fallback
         const savedTypes = localStorage.getItem('ticketTypes');
         if (savedTypes) {
-          setTicketTypes(JSON.parse(savedTypes));
+          try {
+            const parsedTypes = JSON.parse(savedTypes);
+            setTicketTypes(Array.isArray(parsedTypes) ? parsedTypes : []);
+          } catch (e) {
+            console.error('Error parsing localStorage data:', e);
+            setTicketTypes([]);
+          }
+        } else {
+          // Ensure ticketTypes is always an array
+          setTicketTypes([]);
         }
       } finally {
         setLoadingForms(false);
@@ -141,6 +155,22 @@ export default function TicketFormsPage() {
     }
   };
 
+  const filteredTicketTypes = Array.isArray(ticketTypes) 
+    ? ticketTypes.filter(template => {
+        if (!searchQuery) return true;
+        
+        const query = searchQuery.toLowerCase();
+        return (
+          template.name?.toLowerCase().includes(query) ||
+          template.id?.toLowerCase().includes(query) ||
+          (template.fields && JSON.stringify(template.fields).toLowerCase().includes(query))
+        );
+      })
+    : [];
+
+  const totalTemplates = Array.isArray(ticketTypes) ? ticketTypes.length : 0;
+  const filteredCount = filteredTicketTypes.length;
+
   if (loading || loadingForms) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -179,31 +209,54 @@ export default function TicketFormsPage() {
       {notification && (
         <div className={`mb-6 p-4 rounded-md ${
           notification.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
+            ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400' 
+            : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400'
         }`}>
           {notification.message}
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        {ticketTypes.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="inline-block p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
-                No ticket forms have been created yet.
-              </p>
-              <Button 
-                onClick={handleCreateForm}
-                variant="primary"
-              >
-                Create Your First Form
-              </Button>
-            </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {ticketTypes.map(form => (
+          <input
+            type="search"
+            className="block w-full p-2.5 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+            placeholder="Search ticket forms by name or content..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button 
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              onClick={() => setSearchQuery('')}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          {searchQuery ? 
+            `Showing ${filteredCount} of ${totalTemplates} forms matching "${searchQuery}"` : 
+            `Showing all ${totalTemplates} forms`
+          }
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        {loadingForms ? (
+          <div className="py-8 flex justify-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        ) : Array.isArray(filteredTicketTypes) && filteredTicketTypes.length > 0 ? (
+          <div className="space-y-6">
+            {filteredTicketTypes.map(form => (
               <div key={form.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 <div 
                   className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -304,6 +357,14 @@ export default function TicketFormsPage() {
                 )}
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            {searchQuery ? (
+              <p className="text-gray-500 dark:text-gray-400">No forms match your search query. Try different keywords.</p>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No ticket forms available. Create one to get started.</p>
+            )}
           </div>
         )}
       </div>

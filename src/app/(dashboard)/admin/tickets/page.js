@@ -21,6 +21,10 @@ export default function AdminTicketsPage() {
   const [assignments, setAssignments] = useState({});
   const [updating, setUpdating] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [includeRevoked, setIncludeRevoked] = useState(true);
+  const [filterTicketType, setFilterTicketType] = useState('all');
+  const [ticketTypes, setTicketTypes] = useState([]);
+  const [loadingTicketTypes, setLoadingTicketTypes] = useState(true);
 
   useEffect(() => {
     // Check if user is authenticated and has the correct role
@@ -38,7 +42,8 @@ export default function AdminTicketsPage() {
       
       try {
         setLoadingTickets(true);
-        const response = await fetch('/api/forms/submissions', {
+        const url = `/api/forms/submissions?${includeRevoked ? 'includeRevoked=true' : ''}`;
+        const response = await fetch(url, {
           headers: {
             'Cache-Control': 'no-cache'
           }
@@ -82,7 +87,7 @@ export default function AdminTicketsPage() {
     };
     
     fetchTickets();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, includeRevoked]);
   
   useEffect(() => {
     // Fetch all helpdesk users
@@ -109,11 +114,37 @@ export default function AdminTicketsPage() {
     fetchHelpdesks();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    const fetchTicketTypes = async () => {
+      if (!isAuthenticated) return;
+      
+      try {
+        setLoadingTicketTypes(true);
+        const response = await fetch('/api/forms/templates');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch ticket types');
+        }
+        
+        const data = await response.json();
+        const templates = data.templates || [];
+        setTicketTypes(templates);
+      } catch (error) {
+        console.error('Error fetching ticket types:', error);
+      } finally {
+        setLoadingTicketTypes(false);
+      }
+    };
+    
+    fetchTicketTypes();
+  }, [isAuthenticated]);
+
   // Filter tickets
   const filteredTickets = tickets.filter(ticket => {
     const statusMatch = filterStatus === 'all' || ticket.status === filterStatus;
     const priorityMatch = filterPriority === 'all' || ticket.priority === filterPriority;
-    return statusMatch && priorityMatch;
+    const typeMatch = filterTicketType === 'all' || ticket.form_template_id === filterTicketType;
+    return statusMatch && priorityMatch && typeMatch;
   });
   
   // Get pending priority tickets
@@ -196,7 +227,7 @@ export default function AdminTicketsPage() {
     }
   };
   
-  if (loading || loadingTickets || loadingHelpdesks) {
+  if (loading || loadingTickets || loadingHelpdesks || loadingTicketTypes) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -272,7 +303,62 @@ export default function AdminTicketsPage() {
                 <option value="urgent">Urgent</option>
               </select>
             </div>
+            <div className="w-48 ml-2">
+              <label htmlFor="typeFilter" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Ticket Type
+              </label>
+              <select
+                id="typeFilter"
+                value={filterTicketType}
+                onChange={(e) => setFilterTicketType(e.target.value)}
+                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+              >
+                <option value="all">All Types</option>
+                {ticketTypes.map(type => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+        </div>
+        
+        <div className="mb-4 flex items-center">
+          <label className="inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeRevoked}
+              onChange={() => setIncludeRevoked(!includeRevoked)}
+              className="sr-only peer"
+            />
+            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            <span className="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+              Show Revoked Tickets
+            </span>
+          </label>
+        </div>
+        
+        <div className="mt-4 flex justify-between items-center">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {filteredTickets.length} of {tickets.length} tickets
+            {filterStatus !== 'all' && ` • Status: ${filterStatus}`}
+            {filterPriority !== 'all' && ` • Priority: ${filterPriority}`}
+            {filterTicketType !== 'all' && ` • Type: ${ticketTypes.find(t => t.id === filterTicketType)?.name || 'Unknown'}`}
+          </div>
+          
+          {(filterStatus !== 'all' || filterPriority !== 'all' || filterTicketType !== 'all') && (
+            <button
+              onClick={() => {
+                setFilterStatus('all');
+                setFilterPriority('all');
+                setFilterTicketType('all');
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
         
         {filteredTickets.length === 0 ? (
