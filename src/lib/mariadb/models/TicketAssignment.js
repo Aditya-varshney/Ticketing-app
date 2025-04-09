@@ -11,7 +11,7 @@ const TicketAssignment = sequelize.define('TicketAssignment', {
     primaryKey: true
   },
   ticket_id: {
-    type: DataTypes.STRING(36),
+    type: DataTypes.STRING(20),
     allowNull: false,
     unique: true,
     references: {

@@ -324,7 +324,7 @@ export default function UserDetailPage({ params }) {
                     {userTickets.map((ticket) => (
                       <tr key={ticket.id}>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {ticket.id.substring(0, 8)}...
+                          {ticket.id}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {ticket.template?.name || 'Unknown Form'}

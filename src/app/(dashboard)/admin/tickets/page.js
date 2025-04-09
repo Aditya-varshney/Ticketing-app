@@ -409,7 +409,7 @@ export default function AdminTicketsPage() {
                       className={ticket.priority === 'pending' ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}
                     >
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {ticket.id.substring(0, 8)}...
+                        {ticket.id}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {ticket.template?.name || 'Unknown Form'}

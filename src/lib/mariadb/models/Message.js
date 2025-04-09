@@ -34,7 +34,7 @@ const Message = sequelize.define('Message', {
     defaultValue: false
   },
   ticket_id: {
-    type: DataTypes.STRING(36),
+    type: DataTypes.STRING(20),
     allowNull: true
   }
 }, {

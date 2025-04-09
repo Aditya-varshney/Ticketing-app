@@ -5,6 +5,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mariadb/connect';
 import { User, FormSubmission, FormTemplate, TicketAssignment } from '@/lib/mariadb/models';
 import { Op } from 'sequelize';
+import { generateTicketId } from '@/lib/utils/ticketIdGenerator';
 
 // Mark this route as dynamic
 export const dynamic = 'force-dynamic';
@@ -124,68 +125,56 @@ export async function GET(request) {
 // Create a new form submission
 export async function POST(request) {
   try {
-    console.log("Starting form submission process");
-    
-    // Check authentication
     const session = await getServerSession(authOptions);
+    
     if (!session?.user?.id) {
       return NextResponse.json(
         { message: "Not authenticated" },
         { status: 401 }
       );
     }
-
-    // Connect to database
+    
     await connectToDatabase();
-    console.log("Database connected");
     
-    // Extract data from request
-    const data = await request.json();
-    const { formTemplateId, formData, priority } = data;
-
-    if (!formTemplateId || !formData) {
-      return NextResponse.json(
-        { message: "Form template ID and form data are required" },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const { formTemplateId, formData, priority } = body;
+    
+    // Check if this is a custom ticket
+    const isCustomTicket = !formTemplateId || formTemplateId === 'custom-ticket';
+    
+    // Validate form template if provided
+    if (!isCustomTicket) {
+      const template = await FormTemplate.findByPk(formTemplateId);
+      if (!template) {
+        return NextResponse.json(
+          { message: "Invalid form template" },
+          { status: 400 }
+        );
+      }
     }
     
-    // Find the form template
-    const formTemplate = await FormTemplate.findByPk(formTemplateId);
-
-    // Check if this is a custom ticket type
-    const isCustomTicket = formTemplateId === 'custom-ticket';
-
-    // If not a custom ticket and template doesn't exist, return error
-    if (!isCustomTicket && !formTemplate) {
-      return NextResponse.json(
-        { message: "Form template not found" },
-        { status: 404 }
-      );
+    // Process form data
+    let processedFormData = formData;
+    if (typeof formData === 'object') {
+      processedFormData = JSON.stringify(formData);
     }
-
-    // Find the submitter (if a specific submitter is needed)
-    const submitter = await User.findByPk(session.user.id);
-    if (!submitter) {
-      return NextResponse.json(
-        { message: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    // Create the submission
-    // Stringify form data if it's an object
-    const formDataString = typeof formData === 'object' ? JSON.stringify(formData) : formData;
-
+    
     try {
       // Use a custom template ID for custom tickets
       const templateIdToUse = isCustomTicket ? 'custom-ticket-template' : formTemplateId;
       
+      // Generate a unique ticket ID
+      const ticketId = await generateTicketId(
+        templateIdToUse,
+        session.user.name
+      );
+      
       const submission = await FormSubmission.create({
+        id: ticketId,
         form_template_id: templateIdToUse,
         submitted_by: session.user.id,
-        form_data: formDataString,
-        priority: priority || 'pending' // Use provided priority or default to pending
+        form_data: processedFormData,
+        priority: priority || 'pending'
       });
       
       console.log("Submission created successfully:", submission.id);
@@ -199,7 +188,7 @@ export async function POST(request) {
       
       // Fall back to direct SQL query
       const sequelize = FormSubmission.sequelize;
-      const uuid = require('uuid').v4();
+      const ticketId = await generateTicketId(templateIdToUse);
       
       const [results] = await sequelize.query(`
         INSERT INTO form_submissions 
@@ -207,10 +196,10 @@ export async function POST(request) {
         VALUES (?, ?, ?, ?, ?, ?)
       `, {
         replacements: [
-          uuid(),
+          ticketId,
           templateIdToUse,
           session.user.id,
-          formDataString,
+          processedFormData,
           'open',
           priority || 'pending'
         ]
@@ -223,36 +212,8 @@ export async function POST(request) {
     }
   } catch (error) {
     console.error("Error creating form submission:", error);
-    console.error("Full error details:", JSON.stringify(error, null, 2)); 
-    
-    // Check for specific error types
-    if (error.name === 'SequelizeForeignKeyConstraintError') {
-      return NextResponse.json(
-        { 
-          message: "Foreign key constraint failed. Make sure template and user exist.", 
-          error: error.message,
-          details: "You may need to run 'npm run create-form-tables'"
-        },
-        { status: 400 }
-      );
-    }
-    
-    if (error.name === 'SequelizeUniqueConstraintError') {
-      return NextResponse.json(
-        { message: "A submission with this ID already exists", error: error.message },
-        { status: 400 }
-      );
-    }
-    
     return NextResponse.json(
-      { 
-        message: "Error creating submission", 
-        error: error.message,
-        stack: error.stack,
-        name: error.name,
-        code: error.parent?.code,
-        sqlError: error.parent?.sqlMessage || error.original?.sqlMessage
-      },
+      { message: "Error creating form submission", error: error.message },
       { status: 500 }
     );
   }

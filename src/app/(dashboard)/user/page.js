@@ -752,6 +752,9 @@ export default function UserDashboard() {
                           )}
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          ID: {ticket.id}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                           {new Date(ticket.created_at).toLocaleString()}
                         </p>
                       </div>

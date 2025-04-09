@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import Chatbot from '@/components/chatbot/Chatbot';
+import DarkModeToggle from '@/components/DarkModeToggle';
 
 export default function DashboardLayout({ children }) {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -52,6 +53,7 @@ export default function DashboardLayout({ children }) {
                   <span className="text-sm text-gray-700 dark:text-gray-300">
                     {user.name} ({user.role})
                   </span>
+                  <DarkModeToggle />
                   <button 
                     onClick={logout}
                     className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition-colors"

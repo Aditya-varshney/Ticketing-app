@@ -8,6 +8,7 @@ const Chatbot = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [pipelineType, setPipelineType] = useState('gemini-base'); // Default to Gemini Base
+    const [isMinimized, setIsMinimized] = useState(false);
     const messagesEndRef = useRef(null);
     const ragPipeline = useRef(null);
 
@@ -83,17 +84,49 @@ const Chatbot = () => {
         }
     };
 
+    if (isMinimized) {
+        return (
+            <div className="fixed bottom-4 right-4 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Help Assistant</h3>
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={togglePipeline}
+                            className="text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-2 py-1 rounded text-gray-800 dark:text-gray-200"
+                        >
+                            {getPipelineName(pipelineType)}
+                        </button>
+                        <button
+                            onClick={() => setIsMinimized(false)}
+                            className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                        >
+                            Maximize
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="fixed bottom-4 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Help Assistant</h3>
-                <button
-                    onClick={togglePipeline}
-                    className="text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-3 py-1 rounded text-gray-800 dark:text-gray-200"
-                >
-                    Switch to {getPipelineName(pipelineType === 'gemini-base' ? 'gemini-pro' : 
-                                            pipelineType === 'gemini-pro' ? 'openai' : 'gemini-base')}
-                </button>
+                <div className="flex space-x-2">
+                    <button
+                        onClick={togglePipeline}
+                        className="text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-3 py-1 rounded text-gray-800 dark:text-gray-200"
+                    >
+                        Switch to {getPipelineName(pipelineType === 'gemini-base' ? 'gemini-pro' : 
+                                                pipelineType === 'gemini-pro' ? 'openai' : 'gemini-base')}
+                    </button>
+                    <button
+                        onClick={() => setIsMinimized(true)}
+                        className="text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 px-3 py-1 rounded text-gray-800 dark:text-gray-200"
+                    >
+                        Minimize
+                    </button>
+                </div>
             </div>
             
             <div className="h-96 overflow-y-auto p-4">

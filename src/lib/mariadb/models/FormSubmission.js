@@ -1,13 +1,11 @@
 import { DataTypes } from 'sequelize';
-import { v4 as uuidv4 } from 'uuid';
 import sequelize from '../connect';
 import User from './User';
 import FormTemplate from './FormTemplate';
 
 const FormSubmission = sequelize.define('FormSubmission', {
   id: {
-    type: DataTypes.STRING(36),
-    defaultValue: () => uuidv4(),
+    type: DataTypes.STRING(20),
     primaryKey: true
   },
   form_template_id: {
@@ -59,7 +57,7 @@ const FormSubmission = sequelize.define('FormSubmission', {
   },
   priority: {
     type: DataTypes.ENUM('pending', 'low', 'medium', 'high', 'urgent'),
-    defaultValue: 'pending'  // Changed from 'medium' to 'pending'
+    defaultValue: 'pending'
   }
 }, {
   timestamps: true,

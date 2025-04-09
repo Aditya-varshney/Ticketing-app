@@ -378,7 +378,7 @@ export default function HelpdeskDashboard() {
                             {ticket.template?.name || 'Unknown'}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            ID: {ticket.id.substring(0, 8)}
+                            ID: {ticket.id}
                           </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
