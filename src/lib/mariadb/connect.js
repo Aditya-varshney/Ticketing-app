@@ -8,15 +8,26 @@ if (typeof window === 'undefined') {
   try {
     // Use dynamic import to prevent Next.js from trying to bundle mysql2
     sequelize = new Sequelize(
-      process.env.MARIADB_DATABASE || 'ticketing',
-      process.env.MARIADB_USER || 'ticketing_app',
-      process.env.MARIADB_PASSWORD || 'secure_password',
+      process.env.MYSQL_DATABASE || 'ticketing',
+      process.env.MYSQL_USER || 'ticketing_app',
+      process.env.MYSQL_PASSWORD || 'secure_password',
       {
-        host: process.env.MARIADB_HOST || 'localhost',
+        host: process.env.MYSQL_HOST || 'localhost',
+        port: process.env.MYSQL_PORT || 3306,
         dialect: 'mysql',
         dialectModule: require('mysql2'), // Explicitly provide the module
+        dialectOptions: {
+          // Prevent SQLite from being loaded
+          supportBigNumbers: true,
+          bigNumberStrings: true
+        },
         ssl: false,
         logging: process.env.NODE_ENV === 'development' ? console.log : false,
+        // Prevent SQLite from being loaded
+        define: {
+          timestamps: true,
+          underscored: true
+        }
       }
     );
   } catch (error) {
@@ -50,11 +61,11 @@ export const connectToDatabase = async () => {
     }
     
     console.log('Creating new database connection');
-    const host = process.env.MARIADB_HOST || 'localhost';
-    const user = process.env.MARIADB_USER || 'ticketing_app';
-    const password = process.env.MARIADB_PASSWORD || 'secure_password';
-    const database = process.env.MARIADB_DATABASE || 'ticketing';
-    const port = parseInt(process.env.MARIADB_PORT || '3306', 10);
+    const host = process.env.MYSQL_HOST || 'localhost';
+    const user = process.env.MYSQL_USER || 'ticketing_app';
+    const password = process.env.MYSQL_PASSWORD || 'secure_password';
+    const database = process.env.MYSQL_DATABASE || 'ticketing';
+    const port = parseInt(process.env.MYSQL_PORT || '3306', 10);
     
     // Print configuration for debugging (without password)
     console.log(`DB Config - Host: ${host}, User: ${user}, Database: ${database}, Port: ${port}`);

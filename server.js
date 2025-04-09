@@ -13,6 +13,9 @@ app.prepare().then(() => {
   // Create HTTP server
   const httpServer = http.createServer(server);
   
+  // Initialize Socket.io with proper path
+  const io = initSocket(httpServer);
+  
   // Performance optimization for static files
   const cacheTime = dev ? 0 : '7d'; // 7 days cache in production
   server.use(express.static('public', {
@@ -21,9 +24,6 @@ app.prepare().then(() => {
     lastModified: true,
     immutable: !dev,
   }));
-  
-  // Initialize Socket.io with proper path
-  const io = initSocket(httpServer);
   
   // Add cache headers for API responses
   server.use((req, res, next) => {
@@ -36,12 +36,6 @@ app.prepare().then(() => {
       // Short cache for other API routes (5 seconds)
       res.setHeader('Cache-Control', 'public, max-age=5, s-maxage=10');
     }
-    next();
-  });
-  
-  // Socket.io specific middleware for handling socket.io requests
-  server.use('/socket.io', (req, res, next) => {
-    // Let socket.io handle its own requests
     next();
   });
   
