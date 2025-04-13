@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import connectToDatabase from "@/lib/mongodb/connect";
-import User from "@/lib/mongodb/models/User";
+import { connectToDatabase } from "@/lib/mariadb/connect";
+import { User } from "@/lib/mariadb/models";
+import { v4 as uuidv4 } from "uuid";
+
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   console.log("Registration request received");
@@ -26,7 +30,7 @@ export async function POST(request) {
     console.log("Connected to database");
 
     // Check if email already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       console.log("Email already exists:", email);
       return NextResponse.json(
@@ -46,17 +50,22 @@ export async function POST(request) {
     
     console.log("Creating user with role:", validRole);
     const newUser = await User.create({
+      id: uuidv4(),
       name,
       email,
       password: hashedPassword,
       role: validRole,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
     });
-    console.log("User created successfully:", newUser._id);
+    console.log("User created successfully:", newUser.id);
 
-    // Remove password from response
-    const userObject = newUser.toObject();
-    const { password: _, ...userWithoutPassword } = userObject;
+    const userWithoutPassword = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      avatar: newUser.avatar
+    };
 
     console.log("Registration successful");
     return NextResponse.json(

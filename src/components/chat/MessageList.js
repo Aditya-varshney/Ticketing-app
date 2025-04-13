@@ -50,7 +50,7 @@ export default function MessageList({ messages, currentUserId }) {
             <div className="space-y-3">
               {messages.map(message => (
                 <MessageItem 
-                  key={message._id || `${message.sender}-${message.createdAt}`}
+                  key={message._id || message.id || `${message.sender}-${message.createdAt}`}
                   message={message} 
                   isOwn={message.sender === currentUserId} 
                 />

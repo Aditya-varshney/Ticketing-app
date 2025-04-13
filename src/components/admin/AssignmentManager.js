@@ -23,6 +23,7 @@ export default function AssignmentManager({ users, helpdesks }) {
         }
         
         const data = await response.json();
+        console.log("Fetched assignments:", data);
         setAssignments(data);
         setError(null);
       } catch (err) {
@@ -36,27 +37,28 @@ export default function AssignmentManager({ users, helpdesks }) {
     fetchAssignments();
   }, []);
 
-  // Find the helpdesk assigned to a user
-  const findHelpdeskForUser = (userId) => {
-    const assignment = assignments.find(a => a.user._id === userId);
-    return assignment ? assignment.helpdesk._id : null;
-  };
-
   // Handle assignment update
   const handleAssignment = async (userId, helpdeskId) => {
     try {
+      console.log("Assigning user:", userId, "to helpdesk:", helpdeskId);
       setLoading(true);
+      
       const response = await fetch('/api/assignments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId, helpdeskId }),
+        body: JSON.stringify({ 
+          userId: userId,
+          helpdeskId: helpdeskId 
+        }),
       });
 
+      const responseData = await response.json();
+      console.log("Assignment response:", responseData);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update assignment');
+        throw new Error(responseData.message || 'Failed to update assignment');
       }
 
       // Refresh assignments
@@ -119,7 +121,6 @@ export default function AssignmentManager({ users, helpdesks }) {
       });
     } finally {
       setLoading(false);
-      // Clear notification after 3 seconds
       setTimeout(() => setNotification(null), 3000);
     }
   };
@@ -160,7 +161,9 @@ export default function AssignmentManager({ users, helpdesks }) {
             >
               <option value="">Select User</option>
               {users.map(user => (
-                <option key={user._id} value={user._id}>{user.name} ({user.email})</option>
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.email})
+                </option>
               ))}
             </select>
           </div>
@@ -176,7 +179,9 @@ export default function AssignmentManager({ users, helpdesks }) {
             >
               <option value="">Select Helpdesk</option>
               {helpdesks.map(helpdesk => (
-                <option key={helpdesk._id} value={helpdesk._id}>{helpdesk.name} ({helpdesk.email})</option>
+                <option key={helpdesk.id} value={helpdesk.id}>
+                  {helpdesk.name} ({helpdesk.email})
+                </option>
               ))}
             </select>
           </div>
@@ -219,41 +224,53 @@ export default function AssignmentManager({ users, helpdesks }) {
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
               {assignments.map((assignment) => (
-                <tr key={assignment._id}>
+                <tr key={assignment.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Avatar src={assignment.user.avatar} alt={assignment.user.name} size="sm" />
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {assignment.user.name}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {assignment.user.email}
-                        </div>
-                      </div>
+                      {assignment.user && (
+                        <>
+                          <Avatar src={assignment.user.avatar} alt={assignment.user.name} size="sm" />
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {assignment.user.name}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {assignment.user.email}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Avatar src={assignment.helpdesk.avatar} alt={assignment.helpdesk.name} size="sm" />
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {assignment.helpdesk.name}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {assignment.helpdesk.email}
-                        </div>
-                      </div>
+                      {assignment.helpdesk && (
+                        <>
+                          <Avatar src={assignment.helpdesk.avatar} alt={assignment.helpdesk.name} size="sm" />
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {assignment.helpdesk.name}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {assignment.helpdesk.email}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-gray-100">{assignment.assignedBy.name}</div>
+                    {assignment.admin && (
+                      <div className="text-sm text-gray-900 dark:text-gray-100">
+                        {assignment.admin.name}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <Button 
                       variant="danger" 
                       size="sm"
-                      onClick={() => handleRemoveAssignment(assignment.user._id)}
+                      onClick={() => handleRemoveAssignment(assignment.user_id)}
                       disabled={loading}
                     >
                       Remove

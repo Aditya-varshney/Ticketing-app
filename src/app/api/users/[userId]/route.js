@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import connectToDatabase from "@/lib/mongodb/connect";
-import User from "@/lib/mongodb/models/User";
+import { connectToDatabase } from "@/lib/mariadb/connect";
+import { User } from "@/lib/mariadb/models";
+
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
 
 export async function GET(request, { params }) {
   try {
@@ -20,8 +23,10 @@ export async function GET(request, { params }) {
     // Connect to database
     await connectToDatabase();
 
-    // Find user
-    const user = await User.findById(userId).select("-password");
+    // Find user with Sequelize
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] }
+    });
 
     if (!user) {
       return NextResponse.json(
