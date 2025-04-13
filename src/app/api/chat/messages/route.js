@@ -1,10 +1,14 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import connectToDatabase from "@/lib/mongodb/connect";
-import Message from "@/lib/mongodb/models/Message";
-import User from "@/lib/mongodb/models/User";
+import { connectToDatabase } from "@/lib/mariadb/connect";
+import { Message, User } from "@/lib/mariadb/models";
+import { Op } from "sequelize";
 import { NextResponse } from "next/server";
 
+// Mark this route as dynamic
+export const dynamic = 'force-dynamic';
+
+// Get messages between current user and specified user
 export async function GET(request) {
   try {
     // Check authentication
@@ -16,54 +20,79 @@ export async function GET(request) {
       );
     }
 
-    // Get the current user's ID and receiver ID from query params
+    // Get the user ID from query parameters
     const { searchParams } = new URL(request.url);
-    const receiverId = searchParams.get("receiverId");
-
-    if (!receiverId) {
+    const userId = searchParams.get('userId');
+    const ticketId = searchParams.get('ticketId');
+    
+    if (!userId && !ticketId) {
       return NextResponse.json(
-        { message: "Receiver ID is required" },
+        { message: "Either userId or ticketId is required" },
         { status: 400 }
       );
     }
 
-    const currentUserId = session.user.id;
-
-    // Connect to the database
+    // Connect to database
     await connectToDatabase();
 
-    // Fetch messages between the two users (both directions)
-    const messages = await Message.find({
-      $or: [
-        { sender: currentUserId, receiver: receiverId },
-        { sender: receiverId, receiver: currentUserId },
+    // Get the current user
+    const user = await User.findByPk(session.user.id);
+    if (!user) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Build the where clause
+    let whereClause = {};
+    
+    // If ticketId is provided
+    if (ticketId) {
+      // For ticketId: Admin can see all messages for that ticket
+      if (user.role === 'admin') {
+        whereClause.ticket_id = ticketId;
+      } 
+      // Helpdesk can see messages for that ticket where they are involved or between user and any helpdesk
+      else if (user.role === 'helpdesk') {
+        whereClause = {
+          ticket_id: ticketId,
+        };
+      } 
+      // Users can only see messages related to their tickets
+      else {
+        whereClause = {
+          ticket_id: ticketId,
+          [Op.or]: [
+            { sender: session.user.id },
+            { receiver: session.user.id }
+          ]
+        };
+      }
+    } 
+    // If only userId is provided but no ticketId
+    else if (userId) {
+      whereClause = {
+        [Op.or]: [
+          { sender: session.user.id, receiver: userId },
+          { sender: userId, receiver: session.user.id }
+        ]
+      };
+    }
+
+    console.log("Using where clause:", JSON.stringify(whereClause));
+
+    // Get messages between the two users
+    const messages = await Message.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'senderUser', attributes: ['id', 'name', 'email', 'role'] },
+        { model: User, as: 'receiverUser', attributes: ['id', 'name', 'email', 'role'] }
       ],
-    })
-      .sort({ createdAt: 1 }) // Sort by timestamp
-      .populate("sender", "name avatar")
-      .populate("receiver", "name avatar");
+      order: [['created_at', 'ASC']]
+    });
 
-    // Mark all unread messages from the other user as read
-    await Message.updateMany(
-      { sender: receiverId, receiver: currentUserId, read: false },
-      { $set: { read: true } }
-    );
-
-    // Transform messages to include sender and receiver details
-    const transformedMessages = messages.map((message) => ({
-      _id: message._id.toString(),
-      content: message.content,
-      sender: message.sender._id.toString(),
-      senderName: message.sender.name,
-      senderAvatar: message.sender.avatar,
-      receiver: message.receiver._id.toString(),
-      receiverName: message.receiver.name,
-      receiverAvatar: message.receiver.avatar,
-      read: message.read,
-      createdAt: message.createdAt,
-    }));
-
-    return NextResponse.json(transformedMessages);
+    return NextResponse.json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);
     return NextResponse.json(
@@ -73,6 +102,7 @@ export async function GET(request) {
   }
 }
 
+// Send a message to the specified user
 export async function POST(request) {
   try {
     // Check authentication
@@ -84,51 +114,30 @@ export async function POST(request) {
       );
     }
 
-    // Get the message data from the request body
-    const data = await request.json();
-    const { receiver, content } = data;
-
-    if (!receiver || !content.trim()) {
+    // Parse request body
+    const body = await request.json();
+    const { content, receiverId, ticketId } = body;
+    
+    if (!content || !receiverId) {
       return NextResponse.json(
-        { message: "Receiver and content are required" },
+        { message: "Content and receiver ID are required" },
         { status: 400 }
       );
     }
 
-    const senderId = session.user.id;
-
-    // Connect to the database
+    // Connect to database
     await connectToDatabase();
 
-    // Create a new message
+    // Create the message
     const message = await Message.create({
-      sender: senderId,
-      receiver,
+      sender: session.user.id,
+      receiver: receiverId,
       content,
       read: false,
-      createdAt: new Date(),
+      ticket_id: ticketId || null
     });
 
-    // Populate sender and receiver details
-    const populatedMessage = await Message.findById(message._id)
-      .populate("sender", "name avatar")
-      .populate("receiver", "name avatar");
-
-    // Transform the message for the response
-    const transformedMessage = {
-      _id: populatedMessage._id.toString(),
-      content: populatedMessage.content,
-      sender: populatedMessage.sender._id.toString(),
-      senderName: populatedMessage.sender.name,
-      senderAvatar: populatedMessage.sender.avatar,
-      receiver: populatedMessage.receiver._id.toString(),
-      receiverName: populatedMessage.receiver.name,
-      receiverAvatar: populatedMessage.receiver.avatar,
-      read: populatedMessage.read,
-      createdAt: populatedMessage.createdAt,
-    };
-
-    return NextResponse.json(transformedMessage, { status: 201 });
+    return NextResponse.json(message);
   } catch (error) {
     console.error("Error sending message:", error);
     return NextResponse.json(

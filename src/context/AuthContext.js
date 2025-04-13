@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
@@ -12,14 +12,42 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // Use memo to prevent unnecessary re-renders
+  const authUser = useMemo(() => {
+    return session?.user || null;
+  }, [session]);
+
   useEffect(() => {
+    // Add timeout to prevent infinite loading state
+    const timeoutId = setTimeout(() => {
+      if (loading && status !== 'loading') {
+        setLoading(false);
+      }
+    }, 5000); // 5-second safety timeout
+
     if (status === 'authenticated' && session?.user) {
       setUser(session.user);
-    } else {
+      setLoading(false);
+      
+      // Handle role-based redirect
+      const path = window.location.pathname;
+      if (path === '/login' || path === '/') {
+        const role = session.user.role || 'user';
+        router.push(`/${role}`);
+      }
+    } else if (status === 'unauthenticated') {
       setUser(null);
+      setLoading(false);
+      
+      // Only redirect if not already on login page
+      const path = window.location.pathname;
+      if (path !== '/login' && path !== '/register') {
+        router.push('/login');
+      }
     }
-    setLoading(status === 'loading');
-  }, [session, status]);
+
+    return () => clearTimeout(timeoutId);
+  }, [authUser, status, router]);
 
   const login = async (credentials) => {
     try {

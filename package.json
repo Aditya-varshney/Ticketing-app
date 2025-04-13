@@ -3,30 +3,46 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node server.js",
+    "dev": "next dev",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "next start",
     "lint": "next lint",
-    "init-db": "node scripts/init-db.js"
+    "setup": "node scripts/unified-setup.js",
+    "clean-db": "node scripts/clean-db.js",
+    "test-db": "node scripts/test-db.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "@langchain/community": "^0.3.40",
+    "@langchain/openai": "^0.5.5",
     "bcrypt": "^5.1.1",
+    "cheerio": "^1.0.0",
+    "critters": "^0.0.23",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
     "http-proxy-middleware": "^2.0.6",
-    "mongoose": "^8.0.3",
+    "langchain": "^0.3.21",
+    "lucide-react": "^0.483.0",
+    "mariadb": "^3.2.3",
+    "mysql2": "^3.13.0",
     "next": "^14.2.24",
     "next-auth": "^4.24.5",
+    "openai": "^4.93.0",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.11.3",
     "react": "^18",
     "react-dom": "^18",
+    "sequelize": "^6.37.6",
     "socket.io": "^4.7.2",
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "autoprefixer": "^10.0.1",
+    "autoprefixer": "^10.4.21",
     "eslint": "^8",
     "eslint-config-next": "14.0.4",
-    "postcss": "^8",
-    "tailwindcss": "^3.3.0"
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17"
   }
 }

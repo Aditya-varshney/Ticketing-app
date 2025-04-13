@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 
 export default function ChatListPage() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const showContacts = searchParams.get('showContacts') === 'true';
   const [contacts, setContacts] = useState([]);
 
   useEffect(() => {
@@ -37,6 +39,14 @@ export default function ChatListPage() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    // If there's only one contact, redirect directly to that chat
+    // ONLY if showContacts is not explicitly set to true
+    if (contacts.length === 1 && !showContacts) {
+      router.push(`/chat/${contacts[0].id}`);
+    }
+  }, [contacts, router, showContacts]);
+
   const handleChatClick = (contactId) => {
     router.push(`/chat/${contactId}`);
   };
@@ -49,20 +59,25 @@ export default function ChatListPage() {
     );
   }
 
-  // If there's only one contact, redirect directly to that chat
-  useEffect(() => {
-    if (contacts.length === 1) {
-      router.push(`/chat/${contacts[0]._id}`);
-    }
-  }, [contacts, router]);
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h1 className="text-2xl font-bold mb-4">Conversations</h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          Select a contact to start chatting.
-        </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold mb-4">Conversations</h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Select a contact to start chatting.
+            </p>
+          </div>
+          <div>
+            <Button 
+              onClick={() => logout()}
+              variant="outline"
+            >
+              Logout
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -70,9 +85,9 @@ export default function ChatListPage() {
           <div className="space-y-4">
             {contacts.map(contact => (
               <div 
-                key={contact._id} 
+                key={contact.id} 
                 className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition"
-                onClick={() => handleChatClick(contact._id)}
+                onClick={() => handleChatClick(contact.id)}
               >
                 <div className="flex items-center">
                   <Avatar 
