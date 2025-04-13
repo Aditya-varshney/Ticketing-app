@@ -25,14 +25,18 @@ const StatCard = ({ title, value, icon, color }) => {
 };
 
 // Chart Bar Component for simple visualization
-const ChartBar = ({ label, value, maxValue, color }) => {
-  const percentage = Math.round((value / maxValue) * 100);
+const ChartBar = ({ label, value, maxValue, color, totalTickets }) => {
+  // Calculate percentage for the bar width and display
+  const percentage = maxValue > 0 ? Math.round((value / maxValue) * 100) : 0;
+  const displayPercentage = totalTickets > 0 ? Math.round((value / totalTickets) * 100) : 0;
   
   return (
-    <div className="mb-4">
+    <div className="mb-4 group relative">
       <div className="flex justify-between mb-1">
         <span className="text-sm font-medium">{label}</span>
-        <span className="text-sm font-medium">{value}</span>
+        <span className="text-sm font-medium invisible group-hover:visible transition-all duration-200">
+          {displayPercentage}%
+        </span>
       </div>
       <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full">
         <div 
@@ -75,7 +79,7 @@ const TicketNotification = ({ ticket, onAssign, isAssigned = false }) => {
 
 // Helpdesk Card component for displaying helpdesk details
 const HelpdeskCard = ({ staffData, assignedTickets }) => {
-  const openTickets = assignedTickets.filter(t => t.status === 'open').length;
+  const activeTickets = assignedTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
   const resolvedTickets = assignedTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   
   return (
@@ -105,7 +109,7 @@ const HelpdeskCard = ({ staffData, assignedTickets }) => {
         </div>
         
         <div className="flex justify-between text-xs text-gray-400 mb-1">
-          <span>Open: {openTickets}</span>
+          <span>Active: {activeTickets}</span>
           <span>Resolved: {resolvedTickets}</span>
         </div>
         
@@ -238,14 +242,27 @@ export default function AdminDashboard() {
                 // This creates varied performance metrics for visualization testing
                 const samplePerformance = [75, 60, 85, 40][index % 4];
                 
+                // Generate random ticket counts
+                const assignedTickets = Math.floor(Math.random() * 10) + 1; // 1-10 random tickets
+                const openTickets = Math.floor(Math.random() * 3);          // 0-2 open tickets
+                const inProgressTickets = Math.floor(Math.random() * 3);    // 0-2 in progress tickets
+                const resolvedTickets = Math.floor(Math.random() * 5);      // 0-4 resolved tickets
+                const closedTickets = Math.floor(Math.random() * 5);        // 0-4 closed tickets
+                // Only count non-closed urgent and high priority tickets
+                const urgentTickets = Math.floor(Math.random() * 3);        // Sample urgent tickets (not closed)
+                const highPriorityTickets = Math.floor(Math.random() * 4);  // Sample high priority tickets (not closed)
+
                 return {
                   id: helpdesk.id,
                   name: helpdesk.name,
-                  assignedTickets: Math.floor(Math.random() * 10) + 1, // 1-10 random tickets
-                  totalTickets: Math.floor(Math.random() * 15) + 5,    // 5-20 random tickets
-                  openTickets: Math.floor(Math.random() * 5),          // 0-4 open tickets
-                  resolvedTickets: Math.floor(Math.random() * 10),     // 0-9 resolved tickets
-                  performance: samplePerformance                       // Use predefined performance values
+                  assignedTickets,
+                  openTickets,
+                  inProgressTickets,
+                  resolvedTickets,
+                  closedTickets,
+                  urgentTickets,
+                  highPriorityTickets,
+                  performance: samplePerformance  // Use predefined performance values
                 };
               });
               
@@ -257,8 +274,8 @@ export default function AdminDashboard() {
                 inProgressTickets: 0,
                 resolvedTickets: 0,
                 closedTickets: 0,
-                urgentTickets: 0,
-                highPriorityTickets: 0,
+                urgentTickets: urgentTickets,
+                highPriorityTickets: highPriorityTickets,
                 pendingReviewTickets: 0,
                 helpdesks: helpdeskWorkloads,
                 ticketTypes: [],
@@ -309,8 +326,9 @@ export default function AdminDashboard() {
         const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
         const closedTickets = tickets.filter(t => t.status === 'closed').length;
         
-        const urgentTickets = tickets.filter(t => t.priority === 'urgent').length;
-        const highPriorityTickets = tickets.filter(t => t.priority === 'high').length;
+        // Filter out closed tickets with high priority or urgent status
+        const urgentTickets = tickets.filter(t => t.priority === 'urgent' && t.status !== 'closed').length;
+        const highPriorityTickets = tickets.filter(t => t.priority === 'high' && t.status !== 'closed').length;
         const pendingReviewTickets = tickets.filter(t => t.priority === 'pending').length;
         
         // Calculate helpdesk workloads based on ticket assignments
@@ -321,13 +339,18 @@ export default function AdminDashboard() {
           
           // Get the tickets to calculate metrics
           const helpdeskTickets = tickets.filter(t => assignedTicketIds.includes(t.id));
-          const openTickets = helpdeskTickets.filter(t => t.status === 'open' || !t.status).length;
-          const resolvedTickets = helpdeskTickets.filter(t => t.status === 'resolved').length;
-          const totalHandled = helpdeskTickets.length;
           
-          // Calculate performance (resolved tickets as percentage of total handled)
+          // Count tickets by status
+          const openTickets = helpdeskTickets.filter(t => t.status === 'open' || !t.status).length;
+          const inProgressTickets = helpdeskTickets.filter(t => t.status === 'in_progress').length;
+          const resolvedTickets = helpdeskTickets.filter(t => t.status === 'resolved').length;
+          const closedTickets = helpdeskTickets.filter(t => t.status === 'closed').length;
+          const totalAssigned = helpdeskTickets.length;
+          
+          // Calculate performance: (resolved + closed) / total assigned tickets
           // Add a safety check to prevent division by zero
-          let performance = totalHandled > 0 ? Math.round((resolvedTickets / totalHandled) * 100) : 0;
+          let performance = totalAssigned > 0 ? 
+              Math.round(((resolvedTickets + closedTickets) / totalAssigned) * 100) : 0;
           
           // Ensure performance is a valid percentage between 0-100
           performance = Math.max(0, Math.min(100, performance));
@@ -335,10 +358,13 @@ export default function AdminDashboard() {
           return {
             id: helpdesk.id,
             name: helpdesk.name,
-            assignedTickets: totalHandled,
-            totalTickets: totalHandled,
+            assignedTickets: totalAssigned,
             openTickets,
+            inProgressTickets,
             resolvedTickets,
+            closedTickets,
+            urgentTickets,
+            highPriorityTickets,
             performance
           };
         });
@@ -381,9 +407,12 @@ export default function AdminDashboard() {
           id: helpdesk.id,
           name: helpdesk.name,
           assignedTickets: 0,
-          totalTickets: 0,
           openTickets: 0,
+          inProgressTickets: 0,
           resolvedTickets: 0,
+          closedTickets: 0,
+          urgentTickets: 0,
+          highPriorityTickets: 0,
           performance: 0 // Default to 0% if calculation fails
         }));
         
@@ -720,20 +749,7 @@ export default function AdminDashboard() {
     );
   }
 
-  // Calculate maximum values for charts
-  const maxTicketsValue = Math.max(
-    statistics.openTickets,
-    statistics.inProgressTickets, 
-    statistics.resolvedTickets, 
-    statistics.closedTickets
-  );
-  
-  const maxPriorityValue = Math.max(
-    statistics.pendingReviewTickets,
-    statistics.highPriorityTickets,
-    statistics.urgentTickets
-  );
-  
+  // Only keep the maxHelpdeskWorkload calculation
   const maxHelpdeskWorkload = Math.max(
     ...statistics.helpdesks.map(h => h.totalTickets)
   );
@@ -755,7 +771,7 @@ export default function AdminDashboard() {
         <div className="bg-gray-800 rounded-lg shadow p-6 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold mb-2 text-white">Admin Dashboard</h1>
+              <h1 className="text-2xl font-bold mb-2 text-white">iTicket Admin Dashboard</h1>
               <p className="text-gray-300">
                 Welcome back, {user?.name}!
               </p>
@@ -765,7 +781,7 @@ export default function AdminDashboard() {
                 href="/admin/create-ticket"
                 className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
               >
-                Create new Ticket
+                Create New Ticket Type
               </Link>
               <Link 
                 href="/admin/ticket-forms"
@@ -814,19 +830,22 @@ export default function AdminDashboard() {
             
             {/* Total Tickets statistics card */}
             <StatCard
-              title="Total Tickets"
-              value={statistics.totalTickets || 0}
+              title="Active Tickets"
+              value={(statistics.totalTickets || 0) - (statistics.closedTickets || 0)}
               icon={<TicketIcon className="h-6 w-6" />}
               color="bg-green-600"
             />
             
-            {/* Urgent Tickets statistics card */}
-            <StatCard
-              title="Urgent Tickets"
-              value={statistics.urgentTickets || 0}
-              icon={<AlertTriangleIcon className="h-6 w-6" />}
-              color="bg-red-600"
-            />
+            {/* Urgent Tickets statistics card with note */}
+            <div>
+              <StatCard
+                title="Urgent Tickets"
+                value={statistics.urgentTickets || 0}
+                icon={<AlertTriangleIcon className="h-6 w-6" />}
+                color="bg-red-600"
+              />
+              <p className="mt-1 text-xs text-gray-400 italic text-center">Excludes closed tickets</p>
+            </div>
           </div>
 
           {/* Ticket Status Distribution */}
@@ -837,53 +856,61 @@ export default function AdminDashboard() {
                 <ChartBar 
                   label="Open" 
                   value={statistics.openTickets} 
-                  maxValue={maxTicketsValue}
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
                   color="bg-blue-600" 
                 />
                 <ChartBar 
                   label="In Progress" 
                   value={statistics.inProgressTickets} 
-                  maxValue={maxTicketsValue}
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
                   color="bg-yellow-600" 
                 />
                 <ChartBar 
                   label="Resolved" 
                   value={statistics.resolvedTickets} 
-                  maxValue={maxTicketsValue}
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
                   color="bg-green-600" 
                 />
                 <ChartBar 
                   label="Closed" 
                   value={statistics.closedTickets} 
-                  maxValue={maxTicketsValue}
-                  color="bg-gray-600" 
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
+                  color="bg-green-500" 
                 />
               </div>
             </div>
 
             {/* Ticket Priority Distribution */}
             <div className="bg-gray-800 rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 text-white">Ticket Priority Distribution</h2>
+              <h2 className="text-lg font-semibold mb-4 text-white">Ticket Priority Distribution (Active)</h2>
               <div className="space-y-4">
                 <ChartBar 
                   label="Pending Review" 
                   value={statistics.pendingReviewTickets} 
-                  maxValue={maxPriorityValue}
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
                   color="bg-gray-600" 
                 />
                 <ChartBar 
                   label="High Priority" 
                   value={statistics.highPriorityTickets} 
-                  maxValue={maxPriorityValue}
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
                   color="bg-yellow-600" 
                 />
                 <ChartBar 
                   label="Urgent" 
                   value={statistics.urgentTickets} 
-                  maxValue={maxPriorityValue}
+                  maxValue={statistics.totalTickets || 1}
+                  totalTickets={statistics.totalTickets}
                   color="bg-red-600" 
                 />
               </div>
+              <p className="mt-3 text-xs text-gray-400 italic">Note: Closed high priority and urgent tickets are excluded from these statistics.</p>
             </div>
           </div>
           
@@ -941,10 +968,7 @@ export default function AdminDashboard() {
                         Assigned Tickets
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Total Tickets
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                        Open Tickets
+                        Active Tickets
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Resolved
@@ -962,32 +986,39 @@ export default function AdminDashboard() {
                       <tr key={helpdesk.id} className="hover:bg-gray-700">
                         <td className="py-2.5 px-4 whitespace-nowrap">{helpdesk.name}</td>
                         <td className="py-2.5 px-4">{helpdesk.assignedTickets}</td>
-                        <td className="py-2.5 px-4">{helpdesk.totalTickets}</td>
-                        <td className="py-2.5 px-4">{helpdesk.openTickets}</td>
-                        <td className="py-2.5 px-4">{helpdesk.resolvedTickets}</td>
+                        <td className="py-2.5 px-4">{helpdesk.openTickets + helpdesk.inProgressTickets}</td>
+                        <td className="py-2.5 px-4">{helpdesk.resolvedTickets + helpdesk.closedTickets}</td>
                         <td className="py-2.5 px-4">
                           <div className="flex items-center">
                             <div className="w-full h-2.5 bg-gray-700 rounded-full mr-2">
                               <div 
                                 className={`h-2.5 rounded-full ${
-                                  helpdesk.performance >= 80 ? 'bg-green-600' : 
-                                  helpdesk.performance >= 50 ? 'bg-yellow-500' : 
-                                  'bg-red-500'
+                                  helpdesk.assignedTickets > 0 
+                                    ? (helpdesk.resolvedTickets + helpdesk.closedTickets) / helpdesk.assignedTickets >= 0.8 ? 'bg-green-600' : 
+                                      (helpdesk.resolvedTickets + helpdesk.closedTickets) / helpdesk.assignedTickets >= 0.5 ? 'bg-yellow-500' : 
+                                      'bg-red-500'
+                                    : 'bg-gray-600'
                                 }`}
-                                style={{ width: `${helpdesk.performance || 0}%` }}
+                                style={{ width: `${helpdesk.assignedTickets > 0 ? Math.round(((helpdesk.resolvedTickets + helpdesk.closedTickets) / helpdesk.assignedTickets) * 100) : 0}%` }}
                               ></div>
                             </div>
-                            <span className="text-sm text-white font-medium">{helpdesk.performance || 0}%</span>
+                            <span className="text-sm text-white font-medium">
+                              {helpdesk.assignedTickets > 0 ? Math.round(((helpdesk.resolvedTickets + helpdesk.closedTickets) / helpdesk.assignedTickets) * 100) : 0}%
+                            </span>
                           </div>
                         </td>
                         <td className="py-2.5 px-4">
                           <div className="w-16 h-2.5 bg-gray-700 rounded-full">
                             <div 
                               className={`h-2.5 rounded-full ${
-                                helpdesk.assignedTickets > 10 ? 'bg-red-600' : 
-                                helpdesk.assignedTickets > 5 ? 'bg-yellow-600' : 'bg-blue-600'
+                                (helpdesk.openTickets + helpdesk.inProgressTickets) / (statistics.openTickets + statistics.inProgressTickets) > 0.3 ? 'bg-red-600' : 
+                                (helpdesk.openTickets + helpdesk.inProgressTickets) / (statistics.openTickets + statistics.inProgressTickets) > 0.15 ? 'bg-yellow-600' : 'bg-blue-600'
                               }`}
-                              style={{ width: `${Math.min((helpdesk.assignedTickets / 15) * 100, 100)}%` }}
+                              style={{ 
+                                width: `${(statistics.openTickets + statistics.inProgressTickets) > 0 
+                                  ? Math.min(((helpdesk.openTickets + helpdesk.inProgressTickets) / (statistics.openTickets + statistics.inProgressTickets)) * 100, 100) 
+                                  : 0}%` 
+                              }}
                             ></div>
                           </div>
                         </td>

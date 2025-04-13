@@ -32,7 +32,7 @@ export default function HelpdeskDashboard() {
 
   // Fetch all tickets
   const fetchTickets = async () => {
-    if (!isAuthenticated || !user?.id) return;
+    if (!isAuthenticated || !user || !user.id) return;
     
     try {
       setLoadingTickets(true);
@@ -60,7 +60,7 @@ export default function HelpdeskDashboard() {
   };
 
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && user.id) {
       fetchTickets();
     }
   }, [isAuthenticated, user]);
@@ -90,6 +90,14 @@ export default function HelpdeskDashboard() {
   
   // Handle self-assignment of a ticket
   const handleSelfAssign = async (ticketId) => {
+    if (!user || !user.id) {
+      setNotification({
+        type: 'error',
+        message: 'User information not available. Please refresh the page or try logging in again.'
+      });
+      return;
+    }
+
     try {
       setAssigning(true);
       
@@ -133,14 +141,28 @@ export default function HelpdeskDashboard() {
     }
   };
   
+  // Add function to get assigned tickets for current user
+  const getMyAssignedTickets = () => {
+    if (!user || !user.id) return []; // Add null check for user
+    return allTickets.filter(ticket => 
+      ticket.assignment && ticket.assignment.helpdesk_id === user.id
+    );
+  };
+  
+  // Add function to get only active assigned tickets (not resolved or closed)
+  const getMyActiveAssignedTickets = () => {
+    if (!user || !user.id) return []; // Add null check for user
+    return getMyAssignedTickets().filter(ticket => 
+      ticket.status !== 'resolved' && ticket.status !== 'closed'
+    );
+  };
+
   // Filter tickets based on active tab
   const getFilteredTickets = () => {
     let filtered = [...allTickets];
     
     if (activeTab === 'assigned') {
-      filtered = filtered.filter(ticket => 
-        ticket.assignment && ticket.assignment.helpdesk_id === user.id
-      );
+      filtered = getMyAssignedTickets();
     }
     
     return filtered;
@@ -227,7 +249,7 @@ export default function HelpdeskDashboard() {
               All Tickets
             </button>
             <button
-              className={`px-6 py-3 text-md font-medium ${
+              className={`px-6 py-3 text-md font-medium relative ${
                 activeTab === 'assigned'
                   ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
@@ -235,6 +257,11 @@ export default function HelpdeskDashboard() {
               onClick={() => setActiveTab('assigned')}
             >
               My Assigned Tickets
+              {user && getMyActiveAssignedTickets().length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-blue-600 rounded-full">
+                  {getMyActiveAssignedTickets().length}
+                </span>
+              )}
             </button>
           </div>
         
@@ -372,7 +399,14 @@ export default function HelpdeskDashboard() {
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {getSortedTickets().length > 0 ? (
                     getSortedTickets().map((ticket) => (
-                      <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <tr 
+                        key={ticket.id} 
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                          user && ticket.assignment && ticket.assignment.helpdesk_id === user.id 
+                            ? 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30' 
+                            : ''
+                        }`}
+                      >
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {ticket.template?.name || 'Unknown'}
@@ -421,7 +455,16 @@ export default function HelpdeskDashboard() {
                               </div>
                               <div className="ml-3">
                                 <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {ticket.assignment.helpdesk?.name || 'Unknown'}
+                                  {user && ticket.assignment.helpdesk_id === user.id ? (
+                                    <span 
+                                      className="font-semibold text-blue-600 dark:text-blue-400"
+                                      title={`Assigned to you (${user.name})`}
+                                    >
+                                      Me
+                                    </span>
+                                  ) : (
+                                    ticket.assignment.helpdesk?.name || 'Unknown'
+                                  )}
                                 </div>
                               </div>
                             </div>

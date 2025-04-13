@@ -54,10 +54,10 @@ function initSocket(server) {
     
     // Handle sending messages
     socket.on('send-message', (data) => {
-      const { receiverId, message } = data;
-      if (!receiverId || !message) return;
+      const { userId, message } = data;
+      if (!userId || !message) return;
       
-      const receiverSocketId = users.get(receiverId);
+      const receiverSocketId = users.get(userId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit('receive-message', message);
       }
@@ -65,20 +65,20 @@ function initSocket(server) {
     
     // Handle typing indicators
     socket.on('typing', (data) => {
-      const { receiverId, senderId } = data;
-      if (!receiverId || !senderId) return;
+      const { userId, senderId } = data;
+      if (!userId || !senderId) return;
       
-      const receiverSocketId = users.get(receiverId);
+      const receiverSocketId = users.get(userId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit('user-typing', { senderId });
       }
     });
     
     socket.on('stop-typing', (data) => {
-      const { receiverId } = data;
-      if (!receiverId) return;
+      const { userId } = data;
+      if (!userId) return;
       
-      const receiverSocketId = users.get(receiverId);
+      const receiverSocketId = users.get(userId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit('user-stop-typing');
       }

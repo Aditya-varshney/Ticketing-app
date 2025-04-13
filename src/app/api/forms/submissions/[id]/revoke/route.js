@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mariadb/connect';
-import { FormSubmission } from '@/lib/mariadb/models';
+import { FormSubmission, TicketAudit } from '@/lib/mariadb/models';
 
 export async function POST(request, { params }) {
   try {
@@ -31,8 +31,19 @@ export async function POST(request, { params }) {
     }
     
     // Update ticket status to revoked
+    const previousStatus = ticket.status;
     ticket.status = 'revoked';
     await ticket.save();
+
+    // Create audit entry for revocation
+    await TicketAudit.create({
+      ticket_id: ticketId,
+      user_id: session.user.id,
+      action: 'revoked',
+      previous_value: previousStatus,
+      new_value: 'revoked',
+      details: 'Ticket revoked by user'
+    });
     
     return NextResponse.json({ 
       message: 'Ticket revoked successfully',

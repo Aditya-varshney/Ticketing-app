@@ -1,10 +1,10 @@
-# Support Ticketing System
+# iTicket
 
-A comprehensive ticketing system for managing support requests with role-based access control, custom ticket types, and real-time messaging.
+A modern helpdesk and ticketing system for managing support requests with role-based access control, custom ticket types, and real-time messaging.
 
 ## Quick Setup Guide
 
-To get started with the Support Ticketing System, follow these simple steps:
+To get started with iTicket, follow these simple steps:
 
 ```bash
 # Clone the repository

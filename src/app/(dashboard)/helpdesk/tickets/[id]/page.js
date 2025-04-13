@@ -7,6 +7,8 @@ import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PriorityBadge from '@/components/ui/PriorityBadge';
+import TicketMessageInput from '@/components/chat/TicketMessageInput';
+import TicketMessageItem from '@/components/chat/TicketMessageItem';
 
 export default function HelpdeskTicketDetailsPage({ params }) {
   const ticketId = params.id;
@@ -134,29 +136,39 @@ export default function HelpdeskTicketDetailsPage({ params }) {
     scrollToBottom();
   }, [messages]);
   
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !ticket?.submitter?.id) return;
+  // Function to send messages with attachment support
+  const handleSendMessage = async (content, attachment = null) => {
+    if ((!content.trim() && !attachment) || !ticket?.submitter?.id) return;
     
     try {
       setSendingMessage(true);
+      
+      // Prepare message data
+      const messageData = {
+        content: content || 'Attachment',
+        userId: ticket.submitter.id,
+        ticketId: ticketId
+      };
+      
+      // Add attachment data if provided
+      if (attachment) {
+        messageData.attachmentUrl = attachment.url;
+        messageData.attachmentType = attachment.type;
+        messageData.attachmentName = attachment.name;
+      }
+      
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          content: newMessage,
-          receiverId: ticket.submitter.id,
-          ticketId: ticketId
-        }),
+        body: JSON.stringify(messageData),
       });
       
       if (!response.ok) {
         throw new Error('Failed to send message');
       }
       
-      setNewMessage('');
       // Refresh messages
       fetchMessages(ticket.submitter.id);
     } catch (error) {
@@ -248,17 +260,25 @@ export default function HelpdeskTicketDetailsPage({ params }) {
     
     try {
       setSendingMessage(true);
-      await fetch('/api/chat/messages', {
+      
+      // Send the quick reply through the same message path as normal messages
+      const messageData = {
+        content: message,
+        userId: ticket.submitter.id,
+        ticketId: ticketId
+      };
+      
+      const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          content: message,
-          receiverId: ticket.submitter.id,
-          ticketId: ticketId
-        }),
+        body: JSON.stringify(messageData),
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to send quick reply');
+      }
       
       // Refresh messages
       fetchMessages(ticket.submitter.id);
@@ -390,158 +410,89 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
                   ) : messages.length === 0 ? (
-                    <div className="text-center text-gray-500 dark:text-gray-400 my-8">
-                      <p>No messages yet</p>
-                      <p className="text-sm">Start the conversation by sending a message</p>
-                    </div>
-                  ) : !user ? (
                     <div className="flex justify-center items-center h-full">
-                      <div className="text-gray-500 dark:text-gray-400">Loading user data...</div>
+                      <p className="text-gray-500 dark:text-gray-400">No messages yet</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {messages.map(message => {
-                        // Ensure we have a valid user before rendering messages
-                        const isFromCurrentUser = user && message.sender === user.id;
-                        
-                        return (
-                          <div 
-                            key={message.id}
-                            className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}
-                          >
-                            {!isFromCurrentUser && (
-                              <div className="flex-shrink-0 mr-2 mt-1">
-                                <Avatar 
-                                  src={message.senderUser?.avatar} 
-                                  alt={message.senderUser?.name || "User"} 
-                                  size="sm" 
-                                />
-                              </div>
-                            )}
-                            <div className="flex flex-col max-w-[75%]">
-                              {!isFromCurrentUser && (
-                                <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                                  <span className="font-semibold">{message.senderUser?.name || 'Unknown'}</span>
-                                  <span className="ml-1">({message.senderUser?.role || 'unknown'})</span>
-                                </div>
-                              )}
-                              <div 
-                                className={`rounded-lg p-3 ${
-                                  isFromCurrentUser 
-                                    ? 'bg-blue-500 text-white ml-auto' 
-                                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-600'
-                                }`}
-                              >
-                                <div className="text-sm">{message.content}</div>
-                              </div>
-                              <div className={`text-xs mt-1 ${
-                                isFromCurrentUser 
-                                  ? 'text-gray-500 dark:text-gray-400 text-right' 
-                                  : 'text-gray-500 dark:text-gray-400'
-                              }`}>
-                                {isFromCurrentUser ? (
-                                  <span>You • {new Date(message.created_at).toLocaleString()}</span>
-                                ) : (
-                                  <span>{new Date(message.created_at).toLocaleString()}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {messages.map((message) => (
+                        <TicketMessageItem 
+                          key={message.id} 
+                          message={message}
+                          isCurrentUser={message.sender === user?.id}
+                        />
+                      ))}
                       <div ref={messagesEndRef} />
                     </div>
                   )}
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-3 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-xs font-medium text-gray-700 dark:text-gray-300">Quick Replies</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowCustomReplyInput(!showCustomReplyInput)}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                    >
-                      {showCustomReplyInput ? 'Cancel' : '+ Custom'}
-                    </button>
-                  </div>
+                <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                  <TicketMessageInput
+                    onSendMessage={handleSendMessage}
+                    disabled={sendingMessage || ticket?.status === 'closed'}
+                    placeholder={ticket?.status === 'closed' ? "Ticket is closed" : "Type your message here..."}
+                  />
                   
-                  {showCustomReplyInput && (
-                    <div className="mb-2 flex">
-                      <input
-                        type="text"
-                        value={customReply}
-                        onChange={(e) => setCustomReply(e.target.value)}
-                        placeholder="Type your custom reply..."
-                        className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-l-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={addCustomQuickReply}
-                        disabled={!customReply.trim()}
-                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded-r-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  )}
-                  
-                  <div className="flex flex-wrap gap-1 overflow-x-auto pb-1">
-                    {/* Standard quick replies */}
-                    {quickReplies.map((reply, index) => (
-                      <button
-                        key={`standard-${index}`}
-                        onClick={() => sendQuickReply(reply)}
-                        disabled={sendingMessage}
-                        className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-full transition-colors duration-200 text-gray-700 dark:text-gray-300 whitespace-nowrap"
-                      >
-                        {reply}
-                      </button>
-                    ))}
-                    
-                    {/* Custom quick replies */}
-                    {customQuickReplies.map((reply, index) => (
-                      <div key={`custom-${index}`} className="relative group">
+                  <div className="mt-4">
+                    <p className="text-sm font-medium mb-2">Quick Replies:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {quickReplies.map((reply, index) => (
                         <button
+                          key={index}
                           onClick={() => sendQuickReply(reply)}
-                          disabled={sendingMessage}
-                          className="px-3 py-1 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-800/30 rounded-full transition-colors duration-200 text-blue-700 dark:text-blue-300 whitespace-nowrap"
+                          className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                         >
                           {reply}
                         </button>
-                        <button 
-                          onClick={() => {
-                            const newReplies = customQuickReplies.filter((_, i) => i !== index);
-                            setCustomQuickReplies(newReplies);
-                            localStorage.setItem('customQuickReplies', JSON.stringify(newReplies));
-                          }}
-                          className="absolute -top-1 -right-1 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-800/40 text-red-600 dark:text-red-400 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      ))}
+                      {customQuickReplies.map((reply, index) => (
+                        <button
+                          key={`custom-${index}`}
+                          onClick={() => sendQuickReply(reply)}
+                          className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900 rounded-full text-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
+                          {reply}
+                        </button>
+                      ))}
+                      {!showCustomReplyInput && (
+                        <button
+                          onClick={() => setShowCustomReplyInput(true)}
+                          className="px-3 py-1.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-xs hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                        >
+                          + Add Custom
+                        </button>
+                      )}
+                    </div>
+                    
+                    {showCustomReplyInput && (
+                      <div className="mt-2 flex">
+                        <input
+                          type="text"
+                          value={customReply}
+                          onChange={(e) => setCustomReply(e.target.value)}
+                          placeholder="Type your custom quick reply..."
+                          className="flex-grow p-2 text-sm border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        />
+                        <button
+                          onClick={addCustomQuickReply}
+                          className="px-3 py-1 bg-green-500 text-white rounded-r-md hover:bg-green-600 transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCustomReply('');
+                            setShowCustomReplyInput(false);
+                          }}
+                          className="px-3 py-1 ml-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                        >
+                          Cancel
                         </button>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
-
-                <form onSubmit={handleSendMessage} className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    disabled={sendingMessage}
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!newMessage.trim() || sendingMessage}
-                  >
-                    {sendingMessage ? 'Sending...' : 'Send'}
-                  </Button>
-                </form>
               </div>
             </div>
           </div>

@@ -1,65 +1,63 @@
-import React from 'react';
-import MessageItem from './MessageItem';
-import { formatDate } from '@/utils/formatDate';
+'use client';
 
-export default function MessageList({ messages, currentUserId }) {
-  const endOfMessagesRef = React.useRef(null);
+import { format } from 'date-fns';
+import { FaShieldAlt } from 'react-icons/fa';
 
-  // Scroll to bottom when messages update
-  React.useEffect(() => {
-    if (endOfMessagesRef.current) {
-      endOfMessagesRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
-
-  // Group messages by date
-  const groupMessagesByDate = (messages) => {
-    const groups = {};
-    
-    messages.forEach(message => {
-      const date = formatDate(message.createdAt);
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(message);
-    });
-    
-    return groups;
-  };
-
-  const messageGroups = groupMessagesByDate(messages);
+const MessageList = ({ messages, currentUser }) => {
+  if (!messages || messages.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        No messages yet
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {messages.length === 0 ? (
-        <div className="text-center py-8">
-          <div className="inline-block p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <p className="text-gray-600 dark:text-gray-300">
-              No messages yet. Start the conversation!
-            </p>
-          </div>
-        </div>
-      ) : (
-        Object.entries(messageGroups).map(([date, messages]) => (
-          <div key={date} className="message-group">
-            <div className="flex items-center my-4">
-              <div className="flex-grow h-px bg-gray-200 dark:bg-gray-700"></div>
-              <span className="px-4 text-sm text-gray-500 dark:text-gray-400">{date}</span>
-              <div className="flex-grow h-px bg-gray-200 dark:bg-gray-700"></div>
+    <div className="space-y-4">
+      {messages.map((message) => {
+        const isCurrentUser = message.sender_id === currentUser?.id;
+        const messageTime = format(new Date(message.created_at), 'MMM d, yyyy h:mm a');
+        const isAdmin = message.sender?.role === 'admin';
+
+        return (
+          <div
+            key={message.id}
+            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[70%] rounded-lg p-3 ${
+                isCurrentUser
+                  ? 'bg-blue-500 text-white'
+                  : isAdmin
+                  ? 'bg-purple-100 text-gray-900 border border-purple-200'
+                  : 'bg-gray-100 text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold text-sm flex items-center gap-1">
+                  {isCurrentUser ? 'You' : message.sender?.name || 'Unknown User'}
+                  {isAdmin && (
+                    <FaShieldAlt 
+                      className={`w-3 h-3 ${
+                        isCurrentUser ? 'text-white' : 'text-purple-500'
+                      }`} 
+                      title="Admin"
+                    />
+                  )}
+                </span>
+                <span className={`text-xs ${
+                  isCurrentUser ? 'opacity-75' : isAdmin ? 'text-purple-500' : 'text-gray-500'
+                }`}>
+                  {messageTime}
+                </span>
+              </div>
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
             </div>
-            <div className="space-y-3">
-              {messages.map(message => (
-                <MessageItem 
-                  key={message._id || message.id || `${message.sender}-${message.createdAt}`}
-                  message={message} 
-                  isOwn={message.sender === currentUserId} 
-                />
-              ))}
-            </div>
           </div>
-        ))
-      )}
-      <div ref={endOfMessagesRef} />
+        );
+      })}
     </div>
   );
-}
+};
+
+export default MessageList;
