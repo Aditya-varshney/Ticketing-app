@@ -122,12 +122,12 @@ export function ChatProvider({ children }) {
     return () => clearTimeout(fetchTimeout);
   }, [currentChat, session]);
 
-  const fetchMessages = async (receiverId) => {
+  const fetchMessages = async (userId) => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/chat/messages?receiverId=${receiverId}`, {
+      const response = await fetch(`/api/chat/messages?userId=${userId}`, {
         headers: {
           'Cache-Control': 'no-cache'
         }
@@ -147,16 +147,56 @@ export function ChatProvider({ children }) {
     }
   };
 
-  const sendMessage = async (content) => {
-    if (!currentChat || !session?.user?.id || !content.trim()) return;
+  const sendMessage = async (content, attachment = null) => {
+    if (!currentChat || !session?.user?.id || !(content.trim() || attachment)) return;
+    
+    console.log("ChatContext: sendMessage called", { 
+      hasContent: !!content.trim(),
+      hasAttachment: !!attachment,
+      attachmentName: attachment?.name
+    });
     
     try {
+      let attachmentData = null;
+      
+      // If there's an attachment, upload it first
+      if (attachment) {
+        console.log("ChatContext: Uploading attachment", {
+          name: attachment.name,
+          type: attachment.type,
+          size: attachment.size
+        });
+        
+        const formData = new FormData();
+        formData.append('file', attachment);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          const errorDetails = await uploadResponse.text();
+          console.error("ChatContext: Upload failed", errorDetails);
+          throw new Error(`Failed to upload attachment: ${errorDetails}`);
+        }
+        
+        attachmentData = await uploadResponse.json();
+        console.log("ChatContext: Upload successful", attachmentData);
+      }
+      
       const messageData = {
         sender: session.user.id,
         receiver: currentChat.id,
-        content,
-        createdAt: new Date()
+        content: content || 'Attachment',
+        createdAt: new Date(),
+        has_attachment: !!attachmentData,
+        attachment_url: attachmentData?.url || null,
+        attachment_type: attachmentData?.type || null,
+        attachment_name: attachmentData?.name || null
       };
+      
+      console.log("ChatContext: Creating message with data", messageData);
       
       // Add message to local state first for immediate feedback
       setMessages((prev) => [...prev, messageData]);
@@ -164,23 +204,35 @@ export function ChatProvider({ children }) {
       // Emit the message through socket
       if (socket) {
         socket.emit('send-message', {
-          receiverId: currentChat.id,
+          userId: currentChat.id,
           message: messageData
         });
       }
       
       // Send to backend
+      console.log("ChatContext: Sending to API");
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(messageData),
+        body: JSON.stringify({
+          userId: currentChat.id,
+          content: content || 'Attachment',
+          ticketId: currentChat.ticketId || null,
+          attachmentUrl: attachmentData?.url || null,
+          attachmentType: attachmentData?.type || null,
+          attachmentName: attachmentData?.name || null
+        }),
       });
       
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorDetails = await response.text();
+        console.error("ChatContext: API request failed", errorDetails);
+        throw new Error(`Failed to send message: ${errorDetails}`);
       }
+      
+      console.log("ChatContext: Message sent successfully");
       
     } catch (err) {
       console.error('Error sending message:', err);
@@ -191,7 +243,7 @@ export function ChatProvider({ children }) {
   const startTyping = () => {
     if (socket && currentChat) {
       socket.emit('typing', {
-        receiverId: currentChat.id,
+        userId: currentChat.id,
         senderId: session?.user?.id
       });
     }
@@ -200,7 +252,7 @@ export function ChatProvider({ children }) {
   const stopTyping = () => {
     if (socket && currentChat) {
       socket.emit('stop-typing', {
-        receiverId: currentChat.id
+        userId: currentChat.id
       });
     }
   };

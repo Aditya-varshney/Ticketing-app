@@ -5,18 +5,24 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
+import TicketMessageInput from '@/components/chat/TicketMessageInput';
+import TicketMessageItem from '@/components/chat/TicketMessageItem';
+import MessageList from '@/components/chat/MessageList';
+import MessageInput from '@/components/chat/MessageInput';
+import TicketAuditTrail from '@/components/admin/TicketAuditTrail';
 
 export default function AdminTicketDetailsPage({ params }) {
   const ticketId = params.id;
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   
   const [ticket, setTicket] = useState(null);
-  const [loadingTicket, setLoadingTicket] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [priority, setPriority] = useState('medium');
-  const [status, setStatus] = useState('open');
+  const [priority, setPriority] = useState('low');
+  const [status, setStatus] = useState('new');
   
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -24,140 +30,151 @@ export default function AdminTicketDetailsPage({ params }) {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const messagesEndRef = useRef(null);
+  const messageListRef = useRef(null);
+  
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [lastMessageCount, setLastMessageCount] = useState(0);
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
   
-  useEffect(() => {
-    // Check if user is authenticated and has the correct role
-    if (!loading && !isAuthenticated) {
-      router.replace('/login');
-    } else if (!loading && user?.role !== 'admin') {
-      router.replace(`/${user?.role}`);
+  const checkIfAtBottom = () => {
+    const messageList = messageListRef.current;
+    if (messageList) {
+      const isAtBottom = messageList.scrollHeight - messageList.scrollTop <= messageList.clientHeight + 100;
+      setIsAtBottom(isAtBottom);
     }
-  }, [loading, isAuthenticated, user, router]);
+  };
   
-  useEffect(() => {
-    // Fetch ticket details
-    const fetchTicket = async () => {
-      if (!isAuthenticated || !ticketId) return;
-      
-      try {
-        setLoadingTicket(true);
-        const response = await fetch(`/api/forms/submissions?id=${ticketId}`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch ticket details');
-        }
-        
-        const data = await response.json();
-        setTicket(data);
-        setPriority(data.priority || 'medium');
-        setStatus(data.status || 'open');
-        
-        // Now that we have the ticket data, fetch messages
-        if (data.submitter?.id) {
-          fetchMessages();
-        }
-      } catch (error) {
-        console.error('Error fetching ticket:', error);
-        setNotification({
-          type: 'error',
-          message: 'Could not load ticket details. Please try again later.'
-        });
-      } finally {
-        setLoadingTicket(false);
-      }
-    };
-    
-    fetchTicket();
-  }, [isAuthenticated, ticketId]);
-  
-  // Fetch messages for this ticket
   const fetchMessages = async () => {
+    if (!ticketId || !user?.id) return;
+
     try {
       setLoadingMessages(true);
-      const response = await fetch(`/api/chat/messages?ticketId=${ticketId}`);
-      
+      const response = await fetch(`/api/chat/messages?ticketId=${ticketId}`, {
+        credentials: 'include'
+      });
+
       if (!response.ok) {
         throw new Error('Failed to fetch messages');
       }
-      
+
       const data = await response.json();
       setMessages(data);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      setNotification({
-        type: 'error',
-        message: 'Could not load messages. Please try again later.'
-      });
+      
+      // Check if we have new messages
+      if (data.length > lastMessageCount) {
+        setLastMessageCount(data.length);
+        // Only scroll if user was already at bottom
+        if (isAtBottom) {
+          scrollToBottom();
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+      setError(err.message);
     } finally {
       setLoadingMessages(false);
     }
   };
   
-  // Scroll to bottom when messages change
+  // Fetch messages on mount and set up polling
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!authLoading) {
+      fetchMessages();
+      // Set up polling for new messages every 30 seconds
+      const interval = setInterval(fetchMessages, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [ticketId, user, authLoading]);
   
-  const handleUpdateTicket = async () => {
+  // Add scroll event listener
+  useEffect(() => {
+    const messageList = messageListRef.current;
+    if (messageList) {
+      messageList.addEventListener('scroll', checkIfAtBottom);
+      return () => messageList.removeEventListener('scroll', checkIfAtBottom);
+    }
+  }, []);
+  
+  const handleStatusChange = async (newStatus) => {
     try {
-      setUpdating(true);
-      
-      const response = await fetch(`/api/forms/submissions?id=${ticketId}`, {
+      console.log("Updating ticket status:", {
+        ticketId,
+        newStatus,
+        userId: user.id,
+        userRole: user.role
+      });
+
+      const response = await fetch(`/api/forms/submissions/${ticketId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
-          priority,
-          status
-        }),
+          status: newStatus,
+          priority: priority,
+          form_data: ticket.form_data
+        })
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to update ticket');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update ticket status');
       }
-      
-      setNotification({
-        type: 'success',
-        message: 'Ticket updated successfully'
-      });
-      
-      // Refresh the ticket data
-      const updatedTicketResponse = await fetch(`/api/forms/submissions?id=${ticketId}`);
-      if (updatedTicketResponse.ok) {
-        const updatedTicket = await updatedTicketResponse.json();
-        setTicket(updatedTicket);
-      }
-      
-      // If status was changed to resolved, send automatic message
-      if (status === 'resolved' && ticket.status !== 'resolved') {
-        await handleSendStatusUpdateMessage();
-      }
-    } catch (error) {
-      console.error('Error updating ticket:', error);
-      setNotification({
-        type: 'error',
-        message: error.message || 'Failed to update ticket'
-      });
-    } finally {
-      setUpdating(false);
-      
-      // Clear notification after 5 seconds
-      setTimeout(() => {
-        setNotification(null);
-      }, 5000);
+
+      const updatedTicket = await response.json();
+      console.log("Ticket updated successfully:", updatedTicket);
+      setTicket(updatedTicket);
+      setStatus(newStatus);
+    } catch (err) {
+      console.error("Error updating ticket status:", err);
+      setError(err.message);
     }
   };
   
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !ticket?.submitter?.id) return;
-    
+  const handlePriorityChange = async (newPriority) => {
+    try {
+      console.log("Updating ticket priority:", {
+        ticketId,
+        newPriority,
+        userId: user.id,
+        userRole: user.role
+      });
+
+      const response = await fetch(`/api/forms/submissions/${ticketId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          status: status,
+          priority: newPriority,
+          form_data: ticket.form_data
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update ticket priority');
+      }
+
+      const updatedTicket = await response.json();
+      console.log("Ticket updated successfully:", updatedTicket);
+      setTicket(updatedTicket);
+      setPriority(newPriority);
+    } catch (err) {
+      console.error("Error updating ticket priority:", err);
+      setError(err.message);
+    }
+  };
+  
+  const handleSendMessage = async (content, attachment = null) => {
+    if (!content.trim() && !attachment) return;
+
     try {
       setSendingMessage(true);
       const response = await fetch('/api/chat/messages', {
@@ -166,100 +183,122 @@ export default function AdminTicketDetailsPage({ params }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content: newMessage,
-          receiverId: ticket.submitter.id,
-          ticketId: ticketId
+          content,
+          ticketId,
+          receiverId: ticket.submitter.id
         }),
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to send message');
       }
-      
-      setNewMessage('');
-      // Refresh messages
-      fetchMessages();
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setNotification({
-        type: 'error',
-        message: 'Failed to send message'
-      });
+
+      // Fetch updated messages after sending
+      await fetchMessages();
+      scrollToBottom();
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(err.message);
     } finally {
       setSendingMessage(false);
     }
   };
   
-  // Send automatic status update message
-  const handleSendStatusUpdateMessage = async () => {
-    if (!ticket?.submitter?.id) return;
-    
-    try {
-      await fetch('/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: `Ticket status has been updated to: ${status.toUpperCase()}`,
-          receiverId: ticket.submitter.id,
-          ticketId: ticketId
-        }),
-      });
-      
-      // No need to refresh messages, as handleUpdateTicket will call it
-    } catch (error) {
-      console.error('Error sending status update message:', error);
+  useEffect(() => {
+    const fetchTicket = async () => {
+      if (!ticketId || !user?.id || !user?.role) {
+        console.log("Missing required data:", {
+          ticketId,
+          userId: user?.id,
+          userRole: user?.role
+        });
+        return;
+      }
+
+      if (user.role !== 'admin') {
+        console.log("Non-admin user attempting to access admin page:", user.role);
+        router.push('/dashboard');
+        return;
+      }
+
+      try {
+        console.log("Fetching ticket details:", {
+          ticketId,
+          userId: user.id,
+          userRole: user.role
+        });
+
+        const response = await fetch(`/api/forms/submissions/${ticketId}`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch ticket');
+        }
+
+        const data = await response.json();
+        console.log("Received ticket data:", data);
+
+        setTicket(data);
+        setStatus(data.status || 'new');
+        setPriority(data.priority || 'low');
+      } catch (err) {
+        console.error("Error fetching ticket:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      fetchTicket();
     }
-  };
-  
-  if (loading || loadingTicket) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+  }, [ticketId, user, authLoading, router]);
+
+  if (authLoading || loading) {
+    return <div className="p-4">Loading...</div>;
   }
-  
+
+  if (error) {
+    return <div className="p-4 text-red-500">Error: {error}</div>;
+  }
+
   if (!ticket) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h1 className="text-2xl font-bold mb-4">Ticket Not Found</h1>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">
-            The requested ticket could not be found.
-          </p>
-          <Button onClick={() => router.push('/admin/tickets')}>
-            Back to Tickets
-          </Button>
-        </div>
-      </div>
-    );
+    return <div className="p-4">Ticket not found</div>;
   }
   
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <div className="flex justify-between items-center">
-          <div>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Ticket Details
+        </h1>
+        <Button
+          onClick={() => router.push('/admin/tickets')}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+          </svg>
+          Back to All Tickets
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <h1 className="text-2xl font-bold mb-2">Ticket Details</h1>
             <p className="text-gray-600 dark:text-gray-300">
               Ticket ID: {ticket.id}
             </p>
           </div>
-          <div>
-            <Button 
-              onClick={() => router.push('/admin/tickets')}
-              variant="outline"
-            >
-              Back to All Tickets
-            </Button>
-          </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">
               {ticket.template?.name || 'Ticket Information'}
@@ -326,115 +365,60 @@ export default function AdminTicketDetailsPage({ params }) {
           </div>
           
           {/* Chat Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Ticket Communication</h2>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg h-[400px] flex flex-col">
-              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
-                <div className="text-sm font-medium">
-                  <span className="text-blue-600 dark:text-blue-400">Admin View:</span> All communications for this ticket
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden h-[calc(100vh-20rem)]">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold">
+                Chat with {ticket?.submitter?.name || 'User'}
+              </h3>
+            </div>
+
+            <div 
+              ref={messageListRef}
+              className="flex-1 overflow-y-auto p-4 h-[calc(100%-10rem)] bg-gray-50 dark:bg-gray-900"
+            >
+              {loadingMessages ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                 </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
-                {loadingMessages ? (
-                  <div className="flex justify-center items-center h-full">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-gray-500 dark:text-gray-400 my-8">
-                    <p>No messages yet</p>
-                    <p className="text-sm">Start the conversation by sending a message</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {messages.map(message => (
-                      <div 
-                        key={message.id} 
-                        className={`flex ${message.sender === user?.id ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {message.sender !== user?.id && (
-                          <div className="flex-shrink-0 mr-2 mt-1">
-                            <Avatar 
-                              src={message.senderUser?.avatar} 
-                              alt={message.senderUser?.name || "User"} 
-                              size="sm" 
-                            />
-                          </div>
-                        )}
-                        <div className="flex flex-col max-w-[70%]">
-                          {message.sender !== user?.id && (
-                            <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                              <span className="font-semibold">{message.senderUser?.name || 'Unknown'}</span>
-                              <span className="ml-1">({message.senderUser?.role || 'user'})</span>
-                            </div>
-                          )}
-                          <div 
-                            className={`rounded-lg p-3 ${
-                              message.sender === user?.id 
-                                ? 'bg-blue-500 text-white ml-auto' 
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
-                            }`}
-                          >
-                            <div className="text-sm">{message.content}</div>
-                          </div>
-                          <div className={`text-xs mt-1 ${
-                            message.sender === user?.id 
-                              ? 'text-gray-500 dark:text-gray-400 text-right' 
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {message.sender === user?.id ? (
-                              <span>You • {new Date(message.created_at).toLocaleString()}</span>
-                            ) : (
-                              <span>{new Date(message.created_at).toLocaleString()}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </div>
-                )}
-              </div>
-              <form onSubmit={handleSendMessage} className="border-t dark:border-gray-700 p-4 flex">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message to the user..."
-                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  disabled={sendingMessage || !ticket?.submitter?.id}
-                />
-                <button
-                  type="submit"
-                  className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
-                  disabled={!newMessage.trim() || sendingMessage || !ticket?.submitter?.id}
-                >
-                  {sendingMessage ? (
-                    <span className="inline-block w-5 h-5 border-t-2 border-white rounded-full animate-spin"></span>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
-                  )}
-                </button>
-              </form>
+              ) : messages.length === 0 ? (
+                <div className="flex justify-center items-center h-full">
+                  <p className="text-gray-500 dark:text-gray-400">No messages yet. Start the conversation.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((message) => (
+                    <TicketMessageItem 
+                      key={message.id} 
+                      message={message}
+                      isCurrentUser={message.sender === user?.id}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <TicketMessageInput
+                onSendMessage={handleSendMessage}
+                disabled={sendingMessage || ticket?.status === 'closed'}
+                placeholder={ticket?.status === 'closed' ? "Ticket is closed" : "Type your message here..."}
+              />
             </div>
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 h-fit">
-          <h2 className="text-xl font-semibold mb-6">Ticket Management</h2>
-          
-          <div className="space-y-6">
+        <div className="space-y-8">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Priority
               </label>
               <select
                 value={priority}
-                onChange={(e) => setPriority(e.target.value)}
+                onChange={(e) => handlePriorityChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
-                <option value="pending">Pending Review</option>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -448,10 +432,10 @@ export default function AdminTicketDetailsPage({ params }) {
               </label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => handleStatusChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
-                <option value="open">Open</option>
+                <option value="new">New</option>
                 <option value="in_progress">In Progress</option>
                 <option value="resolved">Resolved</option>
                 <option value="closed">Closed</option>
@@ -481,12 +465,16 @@ export default function AdminTicketDetailsPage({ params }) {
             </div>
             
             <Button
-              onClick={handleUpdateTicket}
+              onClick={() => {}}
               disabled={updating}
               className="w-full"
             >
               {updating ? 'Updating...' : 'Update Ticket'}
             </Button>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+            <TicketAuditTrail ticketId={ticketId} />
           </div>
         </div>
       </div>

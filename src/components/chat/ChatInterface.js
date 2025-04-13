@@ -4,14 +4,24 @@ import MessageInput from './MessageInput';
 import { useChat } from '@/context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
 
-export default function ChatInterface({ receiverId, receiverName }) {
+export default function ChatInterface({ userId, receiverName }) {
   const { currentChat, setCurrentChat, messages, loading, sendMessage, userTyping, startTyping, stopTyping } = useChat();
   const { user } = useAuth();
 
+  console.log("ChatInterface rendering", { 
+    userId, 
+    receiverName, 
+    hasSendMessageFunction: !!sendMessage,
+    hasCurrentChat: !!currentChat,
+    messagesCount: messages?.length || 0,
+    currentUser: user?.id
+  });
+
   React.useEffect(() => {
-    if (receiverId) {
+    if (userId) {
+      console.log("Setting current chat", { userId, receiverName });
       setCurrentChat({
-        id: receiverId,
+        id: userId,
         name: receiverName
       });
     }
@@ -19,7 +29,16 @@ export default function ChatInterface({ receiverId, receiverName }) {
     return () => {
       setCurrentChat(null);
     };
-  }, [receiverId, receiverName, setCurrentChat]);
+  }, [userId, receiverName, setCurrentChat]);
+
+  const handleSendMessage = (content, attachment) => {
+    console.log("ChatInterface: handleSendMessage called", { 
+      contentLength: content?.length || 0,
+      hasAttachment: !!attachment,
+      attachmentName: attachment?.name
+    });
+    sendMessage(content, attachment);
+  };
 
   if (!currentChat) {
     return (
@@ -57,7 +76,7 @@ export default function ChatInterface({ receiverId, receiverName }) {
       {/* Message Input */}
       <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
         <MessageInput 
-          onSendMessage={sendMessage} 
+          onSendMessage={handleSendMessage} 
           onStartTyping={startTyping}
           onStopTyping={stopTyping}
         />

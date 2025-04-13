@@ -5,6 +5,7 @@ import FormTemplate from './FormTemplate';
 import FormSubmission from './FormSubmission';
 import TicketAssignment from './TicketAssignment';
 import Notification from './Notification';
+import TicketAudit from './TicketAudit';
 
 // Define model relationships
 User.hasMany(Message, { foreignKey: 'sender', as: 'messagesSent' });
@@ -32,4 +33,17 @@ User.hasMany(TicketAssignment, { foreignKey: 'assigned_by', as: 'createdAssignme
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
-export { sequelize, User, Message, FormTemplate, FormSubmission, TicketAssignment, Notification };
+// Ticket Audit relationships
+FormSubmission.hasMany(TicketAudit, { foreignKey: 'ticket_id', as: 'auditTrail' });
+User.hasMany(TicketAudit, { foreignKey: 'user_id', as: 'ticketAudits' });
+
+export {
+  sequelize,
+  User,
+  Message,
+  FormTemplate,
+  FormSubmission,
+  TicketAssignment,
+  Notification,
+  TicketAudit
+};

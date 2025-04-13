@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { connectToDatabase } from "@/lib/mariadb/connect";
-import { Message, User } from "@/lib/mariadb/models";
+import { Message, User, TicketAssignment, FormSubmission } from "@/lib/mariadb/models";
 import { Op } from "sequelize";
 import { NextResponse } from "next/server";
 
@@ -20,7 +20,7 @@ export async function GET(request) {
       );
     }
 
-    // Get the user ID from query parameters
+    // Get the user ID and ticket ID from query parameters
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const ticketId = searchParams.get('ticketId');
@@ -44,6 +44,8 @@ export async function GET(request) {
       );
     }
 
+    console.log(`Fetching messages for user ${user.id} (${user.role}) - ticketId: ${ticketId}, userId: ${userId}`);
+
     // Build the where clause
     let whereClause = {};
     
@@ -51,48 +53,114 @@ export async function GET(request) {
     if (ticketId) {
       // For ticketId: Admin can see all messages for that ticket
       if (user.role === 'admin') {
-        whereClause.ticket_id = ticketId;
-      } 
-      // Helpdesk can see messages for that ticket where they are involved or between user and any helpdesk
-      else if (user.role === 'helpdesk') {
         whereClause = {
-          ticket_id: ticketId,
+          ticket_id: ticketId
+        };
+      } 
+      // Helpdesk can see messages for tickets assigned to them
+      else if (user.role === 'helpdesk') {
+        const assignment = await TicketAssignment.findOne({
+          where: {
+            ticket_id: ticketId,
+            helpdesk_id: user.id
+          }
+        });
+
+        if (!assignment) {
+          return NextResponse.json(
+            { message: "You don't have access to this ticket's messages" },
+            { status: 403 }
+          );
+        }
+
+        whereClause = {
+          ticket_id: ticketId
         };
       } 
       // Users can only see messages related to their tickets
       else {
+        const ticket = await FormSubmission.findOne({
+          where: {
+            id: ticketId,
+            submitted_by: user.id
+          }
+        });
+
+        if (!ticket) {
+          return NextResponse.json(
+            { message: "You don't have access to this ticket's messages" },
+            { status: 403 }
+          );
+        }
+
         whereClause = {
-          ticket_id: ticketId,
-          [Op.or]: [
-            { sender: session.user.id },
-            { receiver: session.user.id }
-          ]
+          ticket_id: ticketId
         };
       }
     } 
-    // If only userId is provided but no ticketId
+    // If only userId is provided (direct messages)
     else if (userId) {
       whereClause = {
         [Op.or]: [
           { sender: session.user.id, receiver: userId },
           { sender: userId, receiver: session.user.id }
-        ]
+        ],
+        ticket_id: null // Only get direct messages
       };
     }
 
     console.log("Using where clause:", JSON.stringify(whereClause));
 
-    // Get messages between the two users
+    // Get messages with user details
     const messages = await Message.findAll({
       where: whereClause,
       include: [
-        { model: User, as: 'senderUser', attributes: ['id', 'name', 'email', 'role'] },
-        { model: User, as: 'receiverUser', attributes: ['id', 'name', 'email', 'role'] }
+        { 
+          model: User, 
+          as: 'senderUser', 
+          attributes: ['id', 'name', 'email', 'role', 'avatar'],
+          required: false // Changed to false to not filter out messages
+        },
+        { 
+          model: User, 
+          as: 'receiverUser', 
+          attributes: ['id', 'name', 'email', 'role', 'avatar'],
+          required: false // Changed to false to not filter out messages
+        }
       ],
-      order: [['created_at', 'ASC']]
+      order: [['created_at', 'ASC']], // Changed to ASC to show oldest first
     });
 
-    return NextResponse.json(messages);
+    console.log(`Found ${messages.length} messages`);
+
+    // Add additional user info if missing
+    const enhancedMessages = await Promise.all(messages.map(async (message) => {
+      const messageObj = message.toJSON();
+      
+      // If sender info is missing, fetch it
+      if (!messageObj.senderUser && message.sender) {
+        const senderUser = await User.findByPk(message.sender, {
+          attributes: ['id', 'name', 'email', 'role', 'avatar']
+        });
+        if (senderUser) {
+          messageObj.senderUser = senderUser.toJSON();
+        }
+      }
+      
+      // If receiver info is missing, fetch it
+      if (!messageObj.receiverUser && message.receiver) {
+        const receiverUser = await User.findByPk(message.receiver, {
+          attributes: ['id', 'name', 'email', 'role', 'avatar']
+        });
+        if (receiverUser) {
+          messageObj.receiverUser = receiverUser.toJSON();
+        }
+      }
+      
+      return messageObj;
+    }));
+
+    return NextResponse.json(enhancedMessages);
   } catch (error) {
     console.error("Error fetching messages:", error);
     return NextResponse.json(
@@ -116,11 +184,14 @@ export async function POST(request) {
 
     // Parse request body
     const body = await request.json();
-    const { content, receiverId, ticketId } = body;
+    const { content, userId, receiverId, ticketId, attachmentUrl, attachmentType, attachmentName } = body;
     
-    if (!content || !receiverId) {
+    // Use either userId or receiverId
+    const targetUserId = userId || receiverId;
+    
+    if (!content || !targetUserId) {
       return NextResponse.json(
-        { message: "Content and receiver ID are required" },
+        { message: "Content and recipient ID are required" },
         { status: 400 }
       );
     }
@@ -128,16 +199,28 @@ export async function POST(request) {
     // Connect to database
     await connectToDatabase();
 
-    // Create the message
+    // Create the message with attachment info if available
     const message = await Message.create({
       sender: session.user.id,
-      receiver: receiverId,
+      receiver: targetUserId,
       content,
       read: false,
-      ticket_id: ticketId || null
+      ticket_id: ticketId || null,
+      has_attachment: !!attachmentUrl,
+      attachment_url: attachmentUrl || null,
+      attachment_type: attachmentType || null,
+      attachment_name: attachmentName || null
     });
 
-    return NextResponse.json(message);
+    // Fetch the created message with user details
+    const messageWithDetails = await Message.findByPk(message.id, {
+      include: [
+        { model: User, as: 'senderUser', attributes: ['id', 'name', 'email', 'role'] },
+        { model: User, as: 'receiverUser', attributes: ['id', 'name', 'email', 'role'] }
+      ]
+    });
+
+    return NextResponse.json(messageWithDetails);
   } catch (error) {
     console.error("Error sending message:", error);
     return NextResponse.json(

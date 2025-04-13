@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import Logo from '@/components/ui/Logo';
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -24,7 +25,7 @@ export default function Home() {
             break;
           default:
             // Default route for authenticated users
-            router.replace('/chat');
+            router.replace('/user');
         }
       } else {
         // Not authenticated, go to login
@@ -36,7 +37,10 @@ export default function Home() {
   // Loading state
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <div className="h-screen flex flex-col items-center justify-center">
+        <div className="mb-6">
+          <Logo size="xl" className="text-blue-600 dark:text-blue-400" />
+        </div>
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );

@@ -7,8 +7,12 @@ import ClientProviders from '@/components/ClientProviders';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'Ticketing Chat Application',
-  description: 'A helpdesk ticketing application with chat support',
+  title: 'iTicket - Helpdesk & Ticketing System',
+  description: 'Modern ticketing system for efficient customer support',
+  icons: {
+    icon: '/images/logo.png',
+    apple: '/images/logo.png',
+  },
 };
 
 export default async function RootLayout({ children }) {

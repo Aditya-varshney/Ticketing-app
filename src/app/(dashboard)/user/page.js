@@ -8,6 +8,9 @@ import Avatar from '@/components/ui/Avatar';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PriorityBadge from '@/components/ui/PriorityBadge';
 import Link from 'next/link';
+import TicketMessageInput from '@/components/chat/TicketMessageInput';
+import TicketMessageItem from '@/components/chat/TicketMessageItem';
+import Logo from '@/components/ui/Logo';
 
 export default function UserDashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -24,6 +27,7 @@ export default function UserDashboard() {
   const [startTime, setStartTime] = useState(null);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'closed'
   
   // Store the start time to measure loading duration - client-side only
   useEffect(() => {
@@ -121,7 +125,7 @@ export default function UserDashboard() {
         
         // Only fetch helpdesk assignments after tickets are loaded (staggered loading)
         if (selectedTicket) {
-          setTimeout(() => fetchHelpdeskAssignment(selectedTicket.id), 100);
+          setTimeout(() => fetchHelpdesk(), 100);
         }
       } catch (error) {
         console.error('Error fetching tickets:', error);
@@ -135,87 +139,86 @@ export default function UserDashboard() {
   }, [isAuthenticated, user]);
   
   // Update the useEffect for fetching the helpdesk assignment to also fetch messages
+  const fetchHelpdesk = async () => {
+    if (!isAuthenticated || !selectedTicket?.id) return;
+    
+    console.log("Fetching helpdesk assignment for ticket:", selectedTicket.id);
+    try {
+      setLoadingHelpdesk(true);
+      const response = await fetch(`/api/assignments?ticketId=${selectedTicket.id}`, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response from assignments API:", errorText);
+        console.error("Status code:", response.status);
+        throw new Error(`Failed to fetch ticket assignment: ${response.status} - ${errorText.substring(0, 100)}`);
+      }
+      
+      const assignment = await response.json();
+      console.log("Assignment data:", assignment);
+      
+      // If there's a helpdesk assigned to this ticket
+      if (assignment?.helpdesk) {
+        setHelpdeskAssigned(assignment.helpdesk);
+        console.log("Helpdesk assigned:", assignment.helpdesk.id);
+      } else {
+        setHelpdeskAssigned(null);
+        console.log("No helpdesk assigned to this ticket");
+      }
+      
+      // Always fetch messages when a ticket is selected, regardless of helpdesk assignment
+      fetchMessages();
+    } catch (error) {
+      console.error('Error fetching ticket helpdesk assignment:', error);
+      setHelpdeskAssigned(null);
+      // Still try to fetch messages even if helpdesk assignment fails
+      fetchMessages();
+    } finally {
+      setLoadingHelpdesk(false);
+      console.log("Helpdesk loading completed");
+    }
+  };
+  
+  // Function to fetch messages
+  const fetchMessages = async () => {
+    if (!selectedTicket?.id || !user?.id) return;
+    
+    try {
+      setLoadingMessages(true);
+      console.log(`Fetching messages for ticket: ${selectedTicket.id}`);
+      
+      const response = await fetch(`/api/chat/messages?userId=${user.id}&ticketId=${selectedTicket.id}`, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response from messages API:", errorText);
+        console.error("Status code:", response.status);
+        throw new Error(`Failed to fetch messages: ${response.status} - ${errorText.substring(0, 100)}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Fetched ${data.length} messages for ticket ${selectedTicket.id}`);
+      setMessages(data);
+      
+      // Scroll to bottom after messages load
+      setTimeout(scrollToBottom, 100);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchHelpdesk = async () => {
-      if (!isAuthenticated || !selectedTicket) return;
-      
-      console.log("Fetching helpdesk assignment for ticket:", selectedTicket.id);
-      try {
-        setLoadingHelpdesk(true);
-        const response = await fetch(`/api/assignments?ticketId=${selectedTicket.id}`, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Error response from assignments API:", errorText);
-          console.error("Status code:", response.status);
-          throw new Error(`Failed to fetch ticket assignment: ${response.status} - ${errorText.substring(0, 100)}`);
-        }
-        
-        const assignment = await response.json();
-        console.log("Assignment data:", assignment);
-        
-        // If there's a helpdesk assigned to this ticket
-        if (assignment && assignment.helpdesk) {
-          setHelpdeskAssigned(assignment.helpdesk);
-          console.log("Helpdesk assigned:", assignment.helpdesk.id);
-        } else {
-          setHelpdeskAssigned(null);
-          console.log("No helpdesk assigned to this ticket");
-        }
-        
-        // Always fetch messages when a ticket is selected, regardless of helpdesk assignment
-        fetchMessages();
-      } catch (error) {
-        console.error('Error fetching ticket helpdesk assignment:', error);
-        setHelpdeskAssigned(null);
-        // Still try to fetch messages even if helpdesk assignment fails
-        fetchMessages();
-      } finally {
-        setLoadingHelpdesk(false);
-        console.log("Helpdesk loading completed");
-      }
-    };
-    
-    // Function to fetch messages
-    const fetchMessages = async () => {
-      if (!selectedTicket || !user?.id) return;
-      
-      try {
-        setLoadingMessages(true);
-        console.log(`Fetching messages for ticket: ${selectedTicket.id}`);
-        
-        const response = await fetch(`/api/chat/messages?userId=${user.id}&ticketId=${selectedTicket.id}`, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Error response from messages API:", errorText);
-          console.error("Status code:", response.status);
-          throw new Error(`Failed to fetch messages: ${response.status} - ${errorText.substring(0, 100)}`);
-        }
-        
-        const data = await response.json();
-        console.log(`Fetched ${data.length} messages for ticket ${selectedTicket.id}`);
-        setMessages(data);
-        
-        // Scroll to bottom after messages load
-        setTimeout(scrollToBottom, 100);
-      } catch (error) {
-        console.error('Error fetching messages:', error);
-        setMessages([]);
-      } finally {
-        setLoadingMessages(false);
-      }
-    };
-    
     if (selectedTicket) {
       fetchHelpdesk();
     } else {
@@ -250,85 +253,82 @@ export default function UserDashboard() {
     }
   };
   
-  // Get sorted and filtered tickets
-  const getSortedTickets = () => {
-    if (!tickets.length) return [];
+  // Add a function to filter tickets based on active tab
+  const getFilteredTickets = () => {
+    // First filter by search term if exists
+    let filtered = tickets.filter(ticket => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        (ticket.template?.name || '').toLowerCase().includes(searchLower) ||
+        (ticket.priority || '').toLowerCase().includes(searchLower) ||
+        (ticket.status || '').toLowerCase().includes(searchLower)
+      );
+    });
     
-    // First filter by search term
-    let filteredTickets = [...tickets];
-    
-    if (searchTerm.trim() !== '') {
-      const lowerSearchTerm = searchTerm.toLowerCase();
-      filteredTickets = filteredTickets.filter(ticket => {
-        // Search in ticket title/template name
-        const templateName = ticket.template?.name || '';
-        
-        // Search in ticket ID (partial match)
-        const ticketId = ticket.id || '';
-        
-        // Search in ticket description
-        const description = ticket.description || '';
-        
-        // Search in ticket status
-        const status = ticket.status || '';
-        
-        // Search in form data if available
-        let formDataMatches = false;
-        if (ticket.form_data) {
-          const formData = typeof ticket.form_data === 'string' 
-            ? JSON.parse(ticket.form_data) 
-            : ticket.form_data;
-          
-          formDataMatches = Object.values(formData).some(value => 
-            String(value).toLowerCase().includes(lowerSearchTerm)
-          );
-        }
-        
-        return templateName.toLowerCase().includes(lowerSearchTerm) ||
-          ticketId.toLowerCase().includes(lowerSearchTerm) ||
-          description.toLowerCase().includes(lowerSearchTerm) ||
-          status.toLowerCase().includes(lowerSearchTerm) ||
-          formDataMatches;
-      });
+    // Then filter by active/closed status
+    if (activeTab === 'active') {
+      filtered = filtered.filter(ticket => ticket.status !== 'closed');
+    } else if (activeTab === 'closed') {
+      filtered = filtered.filter(ticket => ticket.status === 'closed');
     }
     
-    // Then sort the filtered results
-    return filteredTickets.sort((a, b) => {
-      if (sortField === 'priority') {
-        // Define priority order for sorting
-        const priorityOrder = { pending: 0, low: 1, medium: 2, high: 3, urgent: 4 };
-        const valA = priorityOrder[a.priority] || 0;
-        const valB = priorityOrder[b.priority] || 0;
-        
-        return sortDirection === 'asc' ? valA - valB : valB - valA;
+    return filtered;
+  };
+  
+  // Update the getSortedTickets function to use the filtered tickets
+  const getSortedTickets = () => {
+    return getFilteredTickets().sort((a, b) => {
+      let valueA, valueB;
+      
+      switch (sortField) {
+        case 'priority':
+          const priorityOrder = { pending: 0, low: 1, medium: 2, high: 3, urgent: 4 };
+          valueA = priorityOrder[a.priority] || 0;
+          valueB = priorityOrder[b.priority] || 0;
+          break;
+        case 'created_at':
+        default:
+          valueA = new Date(a.created_at);
+          valueB = new Date(b.created_at);
+          break;
+      }
+      
+      if (sortDirection === 'asc') {
+        return valueA > valueB ? 1 : -1;
       } else {
-        // Date sorting
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
-        
-        return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+        return valueA < valueB ? 1 : -1;
       }
     });
   };
   
   // Handle sending a message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !helpdeskAssigned || !selectedTicket) return;
+  const handleSendMessage = async (content, attachment = null) => {
+    if ((!content.trim() && !attachment) || !helpdeskAssigned || !selectedTicket) return;
     
     try {
       setSendingMessage(true);
+      
+      // Prepare message data
+      const messageData = {
+        content: content || 'Attachment',
+        userId: helpdeskAssigned.id,
+        ticketId: selectedTicket.id
+      };
+      
+      // Add attachment data if provided
+      if (attachment) {
+        messageData.attachmentUrl = attachment.url;
+        messageData.attachmentType = attachment.type;
+        messageData.attachmentName = attachment.name;
+      }
+      
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache'
         },
-        body: JSON.stringify({
-          content: newMessage,
-          receiverId: helpdeskAssigned.id,
-          ticketId: selectedTicket.id
-        }),
+        body: JSON.stringify(messageData),
       });
       
       if (!response.ok) {
@@ -338,7 +338,6 @@ export default function UserDashboard() {
         throw new Error(`Failed to send message: ${response.status} - ${errorText.substring(0, 100)}`);
       }
       
-      setNewMessage('');
       // Fetch latest messages
       const messagesResponse = await fetch(`/api/chat/messages?userId=${user.id}&ticketId=${selectedTicket.id}`, {
         headers: {
@@ -406,11 +405,14 @@ export default function UserDashboard() {
     <div className="container mx-auto px-0 py-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4 mx-4">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">User Dashboard</h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              {user?.name ? `Welcome back, ${user.name}!` : 'Loading user information...'}
-            </p>
+          <div className="flex items-center space-x-6">
+            <Logo size="lg" className="text-blue-600 dark:text-blue-400" />
+            <div>
+              <h1 className="text-2xl font-bold mb-1">User Dashboard</h1>
+              <p className="text-gray-600 dark:text-gray-300">
+                {user?.name ? `Welcome back, ${user.name}!` : 'Loading user information...'}
+              </p>
+            </div>
           </div>
           <div className="flex items-center space-x-3">
             <Button
@@ -476,7 +478,7 @@ export default function UserDashboard() {
               </div>
             ) : (
               <>
-                <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
+                <div className="flex-grow overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
                   {loadingMessages ? (
                     <div className="flex justify-center items-center h-full">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
@@ -519,56 +521,19 @@ export default function UserDashboard() {
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {messages.map(message => (
-                        <div 
-                          key={message.id} 
-                          className={`flex ${message.sender === (user?.id || '') ? 'justify-end' : 'justify-start'}`}
-                        >
-                          {message.sender !== (user?.id || '') && (
-                            <div className="flex-shrink-0 mr-2 mt-1">
-                              <Avatar 
-                                src={message.senderUser?.avatar} 
-                                alt={message.senderUser?.name || "Helpdesk"} 
-                                size="sm" 
-                              />
-                            </div>
-                          )}
-                          <div className="flex flex-col max-w-[70%]">
-                            {message.sender !== (user?.id || '') && (
-                              <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                                <span className="font-semibold">{message.senderUser?.name || 'Helpdesk'}</span>
-                                <span className="ml-1">({message.senderUser?.role || 'helpdesk'})</span>
-                              </div>
-                            )}
-                            <div 
-                              className={`rounded-lg p-3 ${
-                                message.sender === (user?.id || '') 
-                                  ? 'bg-blue-500 text-white ml-auto' 
-                                  : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
-                              }`}
-                            >
-                              <div className="text-sm">{message.content}</div>
-                            </div>
-                            <div className={`text-xs mt-1 ${
-                              message.sender === (user?.id || '') 
-                                ? 'text-gray-500 dark:text-gray-400 text-right' 
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              {message.sender === (user?.id || '') ? (
-                                <span>You • {new Date(message.created_at).toLocaleString()}</span>
-                              ) : (
-                                <span>{new Date(message.created_at).toLocaleString()}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                    <div className="space-y-4">
+                      {messages.map((msg) => (
+                        <TicketMessageItem 
+                          key={msg.id} 
+                          message={msg}
+                          isCurrentUser={msg.sender === user?.id}
+                        />
                       ))}
                       <div ref={messagesEndRef} />
                     </div>
                   )}
                 </div>
-                <form onSubmit={handleSendMessage} className="border-t dark:border-gray-700 p-4">
+                <div className="border-t dark:border-gray-700 p-4">
                   {!helpdeskAssigned ? (
                     <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -579,31 +544,13 @@ export default function UserDashboard() {
                       </p>
                     </div>
                   ) : (
-                    <div className="flex">
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Type a message..."
-                        className="flex-1 border border-gray-300 dark:border-gray-600 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                        disabled={sendingMessage}
-                      />
-                      <button
-                        type="submit"
-                        className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
-                        disabled={!newMessage.trim() || sendingMessage}
-                      >
-                        {sendingMessage ? (
-                          <span className="inline-block w-5 h-5 border-t-2 border-white rounded-full animate-spin"></span>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
+                    <TicketMessageInput
+                      onSendMessage={handleSendMessage}
+                      disabled={sendingMessage}
+                      placeholder="Type your message here..."
+                    />
                   )}
-                </form>
+                </div>
               </>
             )}
           </div>
@@ -612,14 +559,40 @@ export default function UserDashboard() {
         {/* Right side - Tickets section */}
         <div className="w-1/2 pl-2">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow h-full flex flex-col overflow-hidden">
+            {/* Add tab navigation */}
+            <div className="flex border-b border-gray-200 dark:border-gray-700">
+              <button
+                className={`px-6 py-3 text-md font-medium ${
+                  activeTab === 'active'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+                onClick={() => setActiveTab('active')}
+              >
+                Active Tickets
+              </button>
+              <button
+                className={`px-6 py-3 text-md font-medium ${
+                  activeTab === 'closed'
+                    ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+                onClick={() => setActiveTab('closed')}
+              >
+                Closed Tickets
+              </button>
+            </div>
+            
             <div className="p-4 border-b dark:border-gray-700">
               <div className="flex flex-col md:flex-row justify-between gap-4">
-                <h2 className="text-xl font-semibold">Your Support Tickets</h2>
+                <h2 className="text-xl font-semibold">
+                  {activeTab === 'active' ? '' : ''}
+                </h2>
                 
                 {/* Search input */}
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
@@ -628,7 +601,7 @@ export default function UserDashboard() {
                     value={searchTerm}
                     onChange={handleSearch}
                     placeholder="Search tickets..."
-                    className="pl-10 pr-4 py-2 w-full md:w-64 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                    className="pl-10 pr-4 py-2 w-full md:w-64 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
                   />
                   {searchTerm && (
                     <button 
@@ -682,11 +655,19 @@ export default function UserDashboard() {
               <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
                 {searchTerm ? (
                   <>
-                    <span className="font-medium">{getSortedTickets().length}</span> of <span className="font-medium">{tickets.length}</span> tickets match your search
+                    <span className="font-medium">{getSortedTickets().length}</span> of <span className="font-medium">
+                      {activeTab === 'active' 
+                        ? tickets.filter(t => t.status !== 'closed').length 
+                        : tickets.filter(t => t.status === 'closed').length}
+                    </span> {activeTab} tickets match your search
                   </>
                 ) : (
                   <>
-                    <span className="font-medium">{tickets.length}</span> total tickets
+                    <span className="font-medium">
+                      {activeTab === 'active' 
+                        ? tickets.filter(t => t.status !== 'closed').length 
+                        : tickets.filter(t => t.status === 'closed').length}
+                    </span> {activeTab} tickets
                   </>
                 )}
               </div>
@@ -714,16 +695,33 @@ export default function UserDashboard() {
                   <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  <p>No tickets match your search</p>
-                  <p className="text-sm mt-2">Try using different keywords or clear the search</p>
-                  {searchTerm && (
-                    <Button 
-                      onClick={() => setSearchTerm('')}
-                      variant="outline"
-                      className="mt-4"
-                    >
-                      Clear Search
-                    </Button>
+                  {searchTerm ? (
+                    <>
+                      <p>No tickets match your search</p>
+                      <p className="text-sm mt-2">Try using different keywords or clear the search</p>
+                      <Button 
+                        onClick={() => setSearchTerm('')}
+                        variant="outline"
+                        className="mt-4"
+                      >
+                        Clear Search
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p>No {activeTab} tickets found</p>
+                      {activeTab === 'closed' ? (
+                        <p className="text-sm mt-2">Tickets will appear here once they are closed</p>
+                      ) : (
+                        <Button 
+                          onClick={handleRaiseTicket}
+                          variant="primary"
+                          className="mt-4"
+                        >
+                          Raise a New Ticket
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

@@ -6,7 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PriorityBadge from '@/components/ui/PriorityBadge';
+import TicketMessageInput from '@/components/chat/TicketMessageInput';
+import TicketMessageItem from '@/components/chat/TicketMessageItem';
 import { AlertTriangle } from 'lucide-react';
+import TicketEditForm from '@/components/TicketEditForm';
 
 export default function UserTicketDetailsPage({ params }) {
   const ticketId = params.id;
@@ -15,6 +18,7 @@ export default function UserTicketDetailsPage({ params }) {
   
   const [ticket, setTicket] = useState(null);
   const [loadingTicket, setLoadingTicket] = useState(true);
+  const [editing, setEditing] = useState(false);
   const [notification, setNotification] = useState(null);
   
   // Chat state
@@ -41,7 +45,7 @@ export default function UserTicketDetailsPage({ params }) {
     }
   }, [loading, isAuthenticated, user, router]);
 
-  // Fetch ticket details
+  // Improved fetchTicket function
   const fetchTicket = async () => {
     try {
       setLoadingTicket(true);
@@ -52,10 +56,45 @@ export default function UserTicketDetailsPage({ params }) {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch ticket: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Error response from ticket API:", errorText);
+        console.error("Status code:", response.status);
+        throw new Error(`Failed to fetch ticket: ${response.status} - ${errorText.substring(0, 100)}`);
       }
       
       const data = await response.json();
+      console.log("Ticket data fetched:", data);
+      
+      // Also fetch the assignment data
+      try {
+        const assignmentResponse = await fetch(`/api/assignments?ticketId=${ticketId}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (assignmentResponse.ok) {
+          const assignmentData = await assignmentResponse.json();
+          console.log("Assignment data fetched:", assignmentData);
+          
+          if (assignmentData && assignmentData.helpdesk) {
+            // Add assignment data to the ticket
+            data.assignment = {
+              helpdesk_id: assignmentData.helpdesk.id,
+              helpdesk: assignmentData.helpdesk
+            };
+            console.log("Ticket assigned to helpdesk:", assignmentData.helpdesk.name);
+          } else {
+            console.log("No helpdesk assigned to this ticket");
+          }
+        } else {
+          console.log("No assignment data available or failed to fetch");
+        }
+      } catch (assignmentError) {
+        console.error("Error fetching assignment:", assignmentError);
+        // Continue with the ticket data we have
+      }
+      
       setTicket(data);
       
       // After getting ticket, fetch messages
@@ -105,39 +144,46 @@ export default function UserTicketDetailsPage({ params }) {
     scrollToBottom();
   }, [messages]);
   
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    
-    if (!newMessage.trim()) return;
+  const handleSendMessage = async (content, attachment = null) => {
+    if (!content.trim() && !attachment) return;
     
     try {
       setSendingMessage(true);
       
+      // Prepare message data
+      const messageData = {
+        content: content || 'Attachment',
+        userId: ticket.helpdesk_id,
+        ticketId: ticketId
+      };
+      
+      // Add attachment data if provided
+      if (attachment) {
+        messageData.attachmentUrl = attachment.url;
+        messageData.attachmentType = attachment.type;
+        messageData.attachmentName = attachment.name;
+      }
+      
+      // Send message
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: newMessage,
-          ticketId: ticketId
-        }),
+        body: JSON.stringify(messageData),
       });
       
       if (!response.ok) {
         throw new Error('Failed to send message');
       }
       
-      // Clear input
-      setNewMessage('');
-      
-      // Refresh messages
+      // Refresh messages to include the new one
       fetchMessages(ticketId);
     } catch (error) {
       console.error('Error sending message:', error);
       setNotification({
         type: 'error',
-        message: 'Failed to send message. Please try again.'
+        message: 'Failed to send message'
       });
     } finally {
       setSendingMessage(false);
@@ -169,6 +215,29 @@ export default function UserTicketDetailsPage({ params }) {
       setRevoking(false);
       setShowRevokeConfirm(false);
     }
+  };
+  
+  const handleEditClick = () => {
+    setEditing(true);
+  };
+
+  const handleSaveEdit = (updatedTicket) => {
+    // Preserve the existing ticket data and merge with updates
+    setTicket({
+      ...ticket,
+      ...updatedTicket,
+      form_data: updatedTicket.form_data,
+      assignment: updatedTicket.assignment || ticket.assignment
+    });
+    setEditing(false);
+    setNotification({
+      type: 'success',
+      message: 'Ticket updated successfully'
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
   };
   
   if (loading || loadingTicket) {
@@ -250,14 +319,15 @@ export default function UserTicketDetailsPage({ params }) {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6 lg:mb-0 flex flex-col h-[600px]">
             <h2 className="text-xl font-semibold mb-4">Support Conversation</h2>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* Messages Container */}
+            <div className="flex-grow overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
               {loadingMessages ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  {!ticket.helpdesk_id ? (
+                  {!ticket.assignment?.helpdesk_id ? (
                     <>
                       <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-4 w-full max-w-md">
                         <div className="flex items-center">
@@ -289,31 +359,20 @@ export default function UserTicketDetailsPage({ params }) {
               ) : (
                 <div className="space-y-4">
                   {messages.map((msg) => (
-                    <div 
+                    <TicketMessageItem 
                       key={msg.id} 
-                      className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div 
-                        className={`rounded-lg p-3 max-w-xs lg:max-w-md ${
-                          msg.sender_id === user?.id 
-                            ? 'bg-blue-500 text-white' 
-                            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-                        }`}
-                      >
-                        <p className="text-sm">{msg.content}</p>
-                        <span className="block text-xs mt-1 opacity-75">
-                          {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
-                      </div>
-                    </div>
+                      message={msg}
+                      isCurrentUser={msg.sender === user?.id}
+                    />
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
               )}
             </div>
             
+            {/* Message Input */}
             <div className="border-t dark:border-gray-700 p-4">
-              {!ticket.helpdesk_id ? (
+              {!ticket.assignment?.helpdesk_id ? (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
@@ -333,38 +392,45 @@ export default function UserTicketDetailsPage({ params }) {
                     </div>
                   </div>
                 </div>
+              ) : ticket.status === 'closed' ? (
+                <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-gray-800 dark:text-gray-300">
+                        Ticket Closed
+                      </h3>
+                      <div className="mt-2 text-sm text-gray-700 dark:text-gray-200">
+                        <p>
+                          This ticket has been closed. If you need further assistance, please create a new ticket.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <form onSubmit={handleSendMessage} className="flex items-center">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder={ticket.status === 'revoked' ? "Ticket has been revoked" : "Type your message here..."}
-                    className="flex-grow p-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    disabled={sendingMessage || ticket.status === 'revoked'}
-                  />
-                  <button
-                    type="submit"
-                    className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-r-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={sendingMessage || !newMessage.trim() || ticket.status === 'revoked'}
-                  >
-                    {sendingMessage ? (
-                      <svg className="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </button>
-                </form>
+                <TicketMessageInput
+                  onSendMessage={handleSendMessage}
+                  disabled={sendingMessage || ticket.status === 'revoked' || ticket.status === 'closed'}
+                  placeholder={
+                    ticket.status === 'revoked' 
+                      ? "Ticket has been revoked" 
+                      : ticket.status === 'closed'
+                        ? "Ticket is closed"
+                        : "Type your message here..."
+                  }
+                />
               )}
               
-              {ticket.status === 'revoked' && (
+              {(ticket.status === 'revoked' || ticket.status === 'closed') && (
                 <p className="text-sm text-red-600 dark:text-red-400 mt-2">
-                  This ticket has been revoked. You cannot send new messages.
+                  {ticket.status === 'revoked' 
+                    ? "This ticket has been revoked. You cannot send new messages."
+                    : "This ticket is closed. You cannot send new messages."}
                 </p>
               )}
             </div>
@@ -376,11 +442,11 @@ export default function UserTicketDetailsPage({ params }) {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <h3 className="text-lg font-semibold mb-4">Ticket Status</h3>
             
-            {/* Add assignment status indicator */}
+            {/* Fix assignment status indicator */}
             <div className="mb-4 pb-4 border-b dark:border-gray-700">
               <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Assignment Status</h4>
-              <div className={`flex items-center ${ticket.helpdesk_id ? 'text-green-500 dark:text-green-400' : 'text-yellow-500 dark:text-yellow-400'}`}>
-                {ticket.helpdesk_id ? (
+              <div className={`flex items-center ${ticket.assignment?.helpdesk_id ? 'text-green-500 dark:text-green-400' : 'text-yellow-500 dark:text-yellow-400'}`}>
+                {ticket.assignment?.helpdesk_id ? (
                   <>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -422,7 +488,7 @@ export default function UserTicketDetailsPage({ params }) {
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Assigned To</p>
                 <p className="font-medium text-gray-900 dark:text-white">
-                  {ticket.helpdesk?.name || 'Not yet assigned'}
+                  {ticket.assignment?.helpdesk?.name || 'Not yet assigned'}
                 </p>
               </div>
             </div>
@@ -430,35 +496,55 @@ export default function UserTicketDetailsPage({ params }) {
           
           {/* Form Data Section */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Ticket Details</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Ticket Details</h3>
+              {!editing && ticket?.status !== 'revoked' && (
+                <Button
+                  onClick={handleEditClick}
+                  variant="outline"
+                >
+                  Edit Ticket
+                </Button>
+              )}
+            </div>
             
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Title</p>
-                <p className="font-medium text-gray-900 dark:text-white">{ticket.title}</p>
-              </div>
-              {ticket.description && (
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Description</p>
-                  <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{ticket.description}</p>
-                </div>
-              )}
-              
-              {/* Display form data if available */}
-              {ticket.form_data && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="text-md font-medium mb-2">Form Information</h4>
-                  {Object.entries(
-                    typeof ticket.form_data === 'string' 
-                      ? JSON.parse(ticket.form_data) 
-                      : ticket.form_data
-                  ).map(([key, value]) => (
-                    <div key={key} className="mb-3">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{key}</p>
-                      <p className="text-gray-900 dark:text-white">{value}</p>
+              {editing ? (
+                <TicketEditForm
+                  ticket={ticket}
+                  onSave={handleSaveEdit}
+                  onCancel={handleCancelEdit}
+                />
+              ) : (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Title</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{ticket.title}</p>
+                  </div>
+                  {ticket.description && (
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Description</p>
+                      <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{ticket.description}</p>
                     </div>
-                  ))}
-                </div>
+                  )}
+                  
+                  {/* Display form data if available */}
+                  {ticket.form_data && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <h4 className="text-md font-medium mb-2">Form Information</h4>
+                      {Object.entries(
+                        typeof ticket.form_data === 'string' 
+                          ? JSON.parse(ticket.form_data) 
+                          : ticket.form_data
+                      ).map(([key, value]) => (
+                        <div key={key} className="mb-3">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">{key}</p>
+                          <p className="text-gray-900 dark:text-white">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

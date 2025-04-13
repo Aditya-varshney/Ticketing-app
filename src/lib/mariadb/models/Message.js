@@ -36,6 +36,22 @@ const Message = sequelize.define('Message', {
   ticket_id: {
     type: DataTypes.STRING(36),
     allowNull: true
+  },
+  has_attachment: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  attachment_url: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  attachment_type: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  attachment_name: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   }
 }, {
   timestamps: true,

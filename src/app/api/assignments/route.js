@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { connectToDatabase } from "@/lib/mariadb/connect";
-import { User, TicketAssignment, FormSubmission } from "@/lib/mariadb/models";
+import { User, TicketAssignment, FormSubmission, TicketAudit } from "@/lib/mariadb/models";
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 
@@ -96,70 +96,16 @@ export async function POST(request) {
     await connectToDatabase();
     
     const user = await User.findByPk(session.user.id);
-    
-    // Parse request body
-    const requestBody = await request.json();
-    const { ticketId, helpdeskId, selfAssign } = requestBody;
-    
-    // For self-assignment by helpdesk staff
-    if (selfAssign === true) {
-      // Verify the user is a helpdesk staff
-      if (user.role !== 'helpdesk') {
-        return NextResponse.json(
-          { message: "Only helpdesk staff can self-assign tickets" },
-          { status: 403 }
-        );
-      }
-      
-      // Verify ticket exists
-      const ticket = await FormSubmission.findByPk(ticketId);
-      if (!ticket) {
-        return NextResponse.json(
-          { message: "Ticket not found" },
-          { status: 404 }
-        );
-      }
-      
-      // Check if ticket is already assigned
-      const existingAssignment = await TicketAssignment.findOne({
-        where: { ticket_id: ticketId }
-      });
-      
-      if (existingAssignment) {
-        return NextResponse.json(
-          { message: "Ticket is already assigned" },
-          { status: 400 }
-        );
-      }
-      
-      // Create new assignment with helpdesk as self
-      const newAssignment = await TicketAssignment.create({
-        id: uuidv4(),
-        ticket_id: ticketId,
-        helpdesk_id: user.id,
-        assigned_by: user.id,
-        assigned_at: new Date()
-      });
-      
-      // Get the user who created the ticket for notification purposes
-      const ticketDetails = await FormSubmission.findByPk(ticketId, {
-        include: [{ model: User, as: 'submitter' }]
-      });
-      
-      return NextResponse.json({
-        message: "Ticket self-assigned successfully",
-        assignment: newAssignment,
-        submitterId: ticketDetails?.submitter?.id
-      }, { status: 201 });
-    }
-    
-    // For admin assignment (existing flow)
-    if (user.role !== 'admin') {
+    if (!user || user.role !== 'admin') {
       return NextResponse.json(
-        { message: "Only admins can assign tickets to others" },
+        { message: "Only admins can assign tickets" },
         { status: 403 }
       );
     }
+    
+    // Parse request body
+    const body = await request.json();
+    const { ticketId, helpdeskId } = body;
     
     if (!ticketId || !helpdeskId) {
       return NextResponse.json(
@@ -167,8 +113,8 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    
-    // Verify ticket exists
+
+    // Check if ticket exists
     const ticket = await FormSubmission.findByPk(ticketId);
     if (!ticket) {
       return NextResponse.json(
@@ -176,66 +122,47 @@ export async function POST(request) {
         { status: 404 }
       );
     }
-    
-    // Verify helpdesk user exists and has helpdesk role
+
+    // Check if helpdesk user exists and has correct role
     const helpdeskUser = await User.findByPk(helpdeskId);
-    if (!helpdeskUser) {
-      console.error(`Helpdesk user with ID ${helpdeskId} not found`);
+    if (!helpdeskUser || helpdeskUser.role !== 'helpdesk') {
       return NextResponse.json(
-        { message: "Helpdesk user not found", helpdeskId },
+        { message: "Invalid helpdesk user" },
         { status: 400 }
       );
     }
-    
-    if (helpdeskUser.role !== 'helpdesk') {
-      console.error(`User ${helpdeskId} (${helpdeskUser.name}) has role ${helpdeskUser.role}, expected 'helpdesk'`);
-      return NextResponse.json(
-        { message: "Invalid helpdesk user - user exists but doesn't have helpdesk role", 
-          userRole: helpdeskUser.role },
-        { status: 400 }
-      );
-    }
-    
-    console.log(`Assigning ticket ${ticketId} to helpdesk ${helpdeskId} (${helpdeskUser.name})`);
-    
-    // Check if assignment already exists
-    const existingAssignment = await TicketAssignment.findOne({
-      where: { ticket_id: ticketId }
+
+    // Get current assignment if any
+    const currentAssignment = await TicketAssignment.findOne({
+      where: { ticket_id: ticketId },
+      include: [{ model: User, as: 'helpdesk', attributes: ['id', 'name'] }]
     });
-    
-    // Get the user who created the ticket for notification purposes
-    const ticketDetails = await FormSubmission.findByPk(ticketId, {
-      include: [{ model: User, as: 'submitter' }]
+
+    // Create or update assignment
+    const [assignment, created] = await TicketAssignment.upsert({
+      id: currentAssignment?.id || uuidv4(),
+      ticket_id: ticketId,
+      helpdesk_id: helpdeskId,
+      assigned_by: user.id,
+      assigned_at: new Date()
     });
-    
-    if (existingAssignment) {
-      // Update existing assignment
-      existingAssignment.helpdesk_id = helpdeskId;
-      existingAssignment.assigned_by = user.id;
-      existingAssignment.assigned_at = new Date();
-      await existingAssignment.save();
-      
-      return NextResponse.json({
-        message: "Ticket assignment updated successfully",
-        assignment: existingAssignment,
-        submitterId: ticketDetails?.submitter?.id
-      });
-    } else {
-      // Create new assignment
-      const newAssignment = await TicketAssignment.create({
-        id: uuidv4(),
-        ticket_id: ticketId,
-        helpdesk_id: helpdeskId,
-        assigned_by: user.id,
-        assigned_at: new Date()
-      });
-      
-      return NextResponse.json({
-        message: "Ticket assigned successfully",
-        assignment: newAssignment,
-        submitterId: ticketDetails?.submitter?.id
-      }, { status: 201 });
-    }
+
+    // Create audit entry
+    await TicketAudit.create({
+      ticket_id: ticketId,
+      user_id: user.id,
+      action: created ? 'ticket_assigned' : 'ticket_reassigned',
+      previous_value: currentAssignment ? currentAssignment.helpdesk.name : null,
+      new_value: helpdeskUser.name,
+      details: created 
+        ? `Ticket assigned to ${helpdeskUser.name}`
+        : `Ticket reassigned from ${currentAssignment.helpdesk.name} to ${helpdeskUser.name}`
+    });
+
+    return NextResponse.json({
+      message: created ? "Ticket assigned successfully" : "Ticket reassigned successfully",
+      assignment
+    });
   } catch (error) {
     console.error("Error assigning ticket:", error);
     return NextResponse.json(
@@ -290,6 +217,16 @@ export async function DELETE(request) {
         { status: 404 }
       );
     }
+
+    // Create audit entry for assignment removal
+    await TicketAudit.create({
+      ticket_id: ticketId,
+      user_id: user.id,
+      action: 'assigned',
+      previous_value: assignment.helpdesk_id,
+      new_value: null,
+      details: 'Assignment removed'
+    });
     
     await assignment.destroy();
     
