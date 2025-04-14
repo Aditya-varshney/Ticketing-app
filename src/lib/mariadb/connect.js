@@ -9,7 +9,7 @@ if (typeof window === 'undefined') {
     // Use dynamic import to prevent Next.js from trying to bundle mysql2
     sequelize = new Sequelize(
       process.env.MYSQL_DATABASE || 'ticketing',
-      process.env.MYSQL_USER || 'ticketing_app',
+      process.env.MYSQL_USER || 'ticket_user',
       process.env.MYSQL_PASSWORD || 'secure_password',
       {
         host: process.env.MYSQL_HOST || 'localhost',
@@ -62,7 +62,7 @@ export const connectToDatabase = async () => {
     
     console.log('Creating new database connection');
     const host = process.env.MYSQL_HOST || 'localhost';
-    const user = process.env.MYSQL_USER || 'ticketing_app';
+    const user = process.env.MYSQL_USER || 'ticket_user';
     const password = process.env.MYSQL_PASSWORD || 'secure_password';
     const database = process.env.MYSQL_DATABASE || 'ticketing';
     const port = parseInt(process.env.MYSQL_PORT || '3306', 10);

@@ -25,7 +25,7 @@ const util = require('util');
 const dbConfig = {
   host: process.env.DB_HOST || process.env.MARIADB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || process.env.MARIADB_PORT || '3306'),
-  user: process.env.DB_USER || process.env.MARIADB_USER || 'root',
+  user: process.env.DB_USER || process.env.MARIADB_USER || 'ticket_user',
   password: process.env.DB_PASSWORD || process.env.MARIADB_PASSWORD || '',
   database: process.env.DB_NAME || process.env.MARIADB_DATABASE || 'ticketing',
   waitForConnections: true,
@@ -35,7 +35,7 @@ const dbConfig = {
 
 // App user to create
 const appUser = {
-  username: process.env.APP_DB_USER || process.env.MARIADB_USER || 'ticketing_app',
+  username: process.env.APP_DB_USER || process.env.MARIADB_USER || 'ticket_user',
   password: process.env.APP_DB_PASSWORD || process.env.MARIADB_PASSWORD || 'secure_password'
 };
 
@@ -373,12 +373,10 @@ async function createTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
       
-      `CREATE TABLE IF NOT EXISTS forms (
+      `CREATE TABLE IF NOT EXISTS form_templates (
         id VARCHAR(36) PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        description TEXT,
+        name VARCHAR(255) NOT NULL,
         fields JSON NOT NULL,
-        status ENUM('active', 'inactive', 'archived') DEFAULT 'active',
         created_by VARCHAR(36) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -387,19 +385,26 @@ async function createTables() {
       
       `CREATE TABLE IF NOT EXISTS form_submissions (
         id VARCHAR(36) PRIMARY KEY,
-        form_id VARCHAR(36) NOT NULL,
-        submitter_id VARCHAR(36) NOT NULL,
-        assigned_to VARCHAR(36),
-        assigned_by VARCHAR(36),
+        form_template_id VARCHAR(36) NOT NULL,
+        submitted_by VARCHAR(36) NOT NULL,
         form_data JSON NOT NULL,
         status ENUM('open', 'in_progress', 'resolved', 'closed', 'reopened') NOT NULL DEFAULT 'open',
         priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (form_id) REFERENCES forms(id) ON DELETE CASCADE,
-        FOREIGN KEY (submitter_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
-        FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+        FOREIGN KEY (form_template_id) REFERENCES form_templates(id) ON DELETE CASCADE,
+        FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE CASCADE
+      ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+      
+      `CREATE TABLE IF NOT EXISTS ticket_assignments (
+        id VARCHAR(36) PRIMARY KEY,
+        ticket_id VARCHAR(36) NOT NULL,
+        helpdesk_id VARCHAR(36) NOT NULL,
+        assigned_by VARCHAR(36) NOT NULL,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ticket_id) REFERENCES form_submissions(id) ON DELETE CASCADE,
+        FOREIGN KEY (helpdesk_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE
       ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
       
       `CREATE TABLE IF NOT EXISTS chat_messages (

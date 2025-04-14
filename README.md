@@ -40,9 +40,9 @@ After setup, you can log in with these default test accounts:
 |          | Helpdesk3   | helpdesk3@example.com    | helpdesk3 |
 | User     | Aditya      | user1@example.com        | user1     |
 |          | Tejas       | user2@example.com        | user2     |
-|          | Eshaan      | user3@example.com        | user3     |
+|          | Farhan      | user3@example.com        | user3     |
 |          | Vedant      | user4@example.com        | user4     |
-|          | Soumajit    | user5@example.com        | user5     |
+|          | Soumojit    | user5@example.com        | user5     |
 
 ## Features
 

@@ -7,13 +7,13 @@ async function testHelpdeskUsers() {
   console.log('Database configuration:');
   console.log(`- Host: ${process.env.MARIADB_HOST || 'localhost'}`);
   console.log(`- Database: ${process.env.MARIADB_DATABASE || 'ticketing'}`);
-  console.log(`- User: ${process.env.MARIADB_USER || 'ticketing_app'}`);
+  console.log(`- User: ${process.env.MARIADB_USER || 'ticket_user'}`);
   
   try {
     // Connect to database
     const sequelize = new Sequelize(
       process.env.MARIADB_DATABASE || 'ticketing',
-      process.env.MARIADB_USER || 'ticketing_app',
+      process.env.MARIADB_USER || 'ticket_user',
       process.env.MARIADB_PASSWORD || 'secure_password',
       {
         host: process.env.MARIADB_HOST || 'localhost',

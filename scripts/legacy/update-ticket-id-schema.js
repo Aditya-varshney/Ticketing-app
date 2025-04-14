@@ -4,7 +4,7 @@ require('dotenv').config({ path: '.env.local' });
 const {
   MYSQL_HOST: DB_HOST = 'localhost',
   MYSQL_PORT: DB_PORT = 3306,
-  MYSQL_USER: DB_USER = 'ticketing_app',
+  MYSQL_USER: DB_USER = 'ticket_user',
   MYSQL_PASSWORD: DB_PASS = '',
   MYSQL_DATABASE: DB_NAME = 'ticketing'
 } = process.env;

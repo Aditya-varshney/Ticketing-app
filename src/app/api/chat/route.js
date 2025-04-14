@@ -41,7 +41,7 @@ export async function GET(request) {
           where: { 
             id: { [Op.ne]: session.user.id }
           },
-          attributes: ['id', 'name', 'email', 'role', 'avatar']
+          attributes: ['id', 'name', 'email', 'role', 'profile_image']
         });
         
         // Transform to include _id for compatibility with frontend
@@ -50,7 +50,7 @@ export async function GET(request) {
           name: user.name,
           email: user.email,
           role: user.role,
-          avatar: user.avatar
+          avatar: user.profile_image
         }));
         break;
         
@@ -66,7 +66,7 @@ export async function GET(request) {
                 {
                   model: User,
                   as: 'submitter',
-                  attributes: ['id', 'name', 'email', 'role', 'avatar']
+                  attributes: ['id', 'name', 'email', 'role', 'profile_image']
                 }
               ]
             }
@@ -99,7 +99,7 @@ export async function GET(request) {
                 {
                   model: User,
                   as: 'helpdesk',
-                  attributes: ['id', 'name', 'email', 'role', 'avatar']
+                  attributes: ['id', 'name', 'email', 'role', 'profile_image']
                 }
               ]
             }

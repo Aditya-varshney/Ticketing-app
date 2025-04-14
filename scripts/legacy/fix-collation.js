@@ -8,12 +8,12 @@ async function fixCollation() {
     console.log('Database configuration:');
     console.log(`- Host: ${process.env.MARIADB_HOST || 'localhost'}`);
     console.log(`- Database: ${process.env.MARIADB_DATABASE || 'ticketing'}`);
-    console.log(`- User: ${process.env.MARIADB_USER || 'ticketing_app'}`);
+    console.log(`- User: ${process.env.MARIADB_USER || 'ticket_user'}`);
     
     // Connect to the database
     conn = await mariadb.createConnection({
       host: process.env.MARIADB_HOST || 'localhost',
-      user: process.env.MARIADB_USER || 'ticketing_app',
+      user: process.env.MARIADB_USER || 'ticket_user',
       password: process.env.MARIADB_PASSWORD || 'secure_password',
       database: process.env.MARIADB_DATABASE || 'ticketing',
       port: process.env.MARIADB_PORT || 3306

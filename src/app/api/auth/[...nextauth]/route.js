@@ -26,7 +26,7 @@ export const authOptions = {
           // Optimize the query by selecting only required fields
           const user = await User.findOne({ 
             where: { email: credentials.email },
-            attributes: ['id', 'name', 'email', 'password', 'role', 'avatar']
+            attributes: ['id', 'name', 'email', 'password', 'role', 'profile_image']
           });
           
           if (!user) {
@@ -44,7 +44,7 @@ export const authOptions = {
             name: user.name,
             email: user.email,
             role: user.role,
-            avatar: user.avatar,
+            profile_image: user.profile_image,
           };
         } catch (error) {
           console.error("NextAuth: Authorization error", error);
@@ -58,7 +58,7 @@ export const authOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
-        token.avatar = user.avatar;
+        token.profile_image = user.profile_image;
       }
       return token;
     },
@@ -66,7 +66,7 @@ export const authOptions = {
       if (token) {
         session.user.id = token.id;
         session.user.role = token.role;
-        session.user.avatar = token.avatar;
+        session.user.profile_image = token.profile_image;
       }
       return session;
     }

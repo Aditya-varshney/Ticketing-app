@@ -29,7 +29,7 @@ const config = {
 
 // App user to create
 const appUser = {
-  username: process.env.MARIADB_USER || 'ticketing_app',
+  username: process.env.MARIADB_USER || 'ticket_user',
   password: process.env.MARIADB_PASSWORD || 'secure_password'
 };
 
@@ -582,7 +582,7 @@ async function createEnvFile() {
 MARIADB_HOST=localhost
 MARIADB_PORT=3306
 MARIADB_DATABASE=ticketing
-MARIADB_USER=ticketing_app
+MARIADB_USER=ticket_user
 MARIADB_PASSWORD=secure_password
 MARIADB_ROOT_USER=root
 MARIADB_ROOT_PASSWORD=

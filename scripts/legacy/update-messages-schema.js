@@ -6,7 +6,7 @@ async function updateMessagesSchema() {
   
   // Get database configuration
   const DB_NAME = process.env.MARIADB_DATABASE || process.env.DB_NAME || 'ticketing';
-  const DB_USER = process.env.MARIADB_USER || process.env.DB_USER || 'ticketing_app';
+  const DB_USER = process.env.MARIADB_USER || process.env.DB_USER || 'ticket_user';
   const DB_PASS = process.env.MARIADB_PASSWORD || process.env.DB_PASSWORD || 'secure_password';
   const DB_HOST = process.env.MARIADB_HOST || process.env.DB_HOST || 'localhost';
   const DB_PORT = parseInt(process.env.MARIADB_PORT || process.env.DB_PORT || '3306', 10);

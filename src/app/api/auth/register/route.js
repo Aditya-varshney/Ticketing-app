@@ -55,7 +55,7 @@ export async function POST(request) {
       email,
       password: hashedPassword,
       role: validRole,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+      profile_image: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
     });
     console.log("User created successfully:", newUser.id);
 
@@ -64,7 +64,7 @@ export async function POST(request) {
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
-      avatar: newUser.avatar
+      avatar: newUser.profile_image
     };
 
     console.log("Registration successful");

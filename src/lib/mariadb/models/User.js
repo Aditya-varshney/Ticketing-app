@@ -28,15 +28,30 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('user', 'helpdesk', 'admin'),
     defaultValue: 'user'
   },
-  avatar: {
+  profile_image: {
     type: DataTypes.STRING,
-    defaultValue: ''
+    defaultValue: '',
+    field: 'profile_image'
   }
 }, {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
   tableName: 'users'  // Explicitly specify the lowercase table name
+});
+
+// Virtual field to maintain compatibility with existing code
+User.prototype.getAvatar = function() {
+  return this.profile_image;
+};
+
+Object.defineProperty(User.prototype, 'avatar', {
+  get() {
+    return this.profile_image;
+  },
+  set(value) {
+    this.profile_image = value;
+  }
 });
 
 export default User;
