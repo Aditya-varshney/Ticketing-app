@@ -1,6 +1,7 @@
 'use client';
 
 import { useTheme } from './ThemeProvider';
+import { Moon, Sun } from 'lucide-react';
 
 export default function DarkModeToggle() {
   const { isDarkMode, toggleTheme } = useTheme();
@@ -8,30 +9,15 @@ export default function DarkModeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-      role="switch"
-      aria-checked={isDarkMode}
+      className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+      aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+      title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
     >
-      <span className="sr-only">Toggle dark mode</span>
-      <span
-        className={`${
-          isDarkMode ? 'translate-x-6 bg-gray-800' : 'translate-x-1 bg-gray-200'
-        } inline-block h-4 w-4 transform rounded-full transition-transform`}
-      />
-      <span
-        className={`${
-          isDarkMode ? 'opacity-0' : 'opacity-100'
-        } absolute left-1.5 text-yellow-500 transition-opacity`}
-      >
-        ☀️
-      </span>
-      <span
-        className={`${
-          isDarkMode ? 'opacity-100' : 'opacity-0'
-        } absolute right-1.5 text-gray-300 transition-opacity`}
-      >
-        🌙
-      </span>
+      {isDarkMode ? (
+        <Sun className="h-5 w-5 text-yellow-500" />
+      ) : (
+        <Moon className="h-5 w-5 text-gray-700" />
+      )}
     </button>
   );
 } 

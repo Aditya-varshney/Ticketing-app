@@ -51,8 +51,8 @@ export async function POST(request) {
     });
     
     // Validate file type (allow only images and documents)
-    const allowedImageTypes = ['.png', '.jpg', '.jpeg'];
-    const allowedDocTypes = ['.pdf', '.docx'];
+    const allowedImageTypes = ['.png', '.jpg', '.jpeg', '.gif'];
+    const allowedDocTypes = ['.pdf', '.docx', '.xlsx', '.txt', '.csv', '.md'];
     const allowedExtensions = [...allowedImageTypes, ...allowedDocTypes];
     
     if (!allowedExtensions.includes(fileExtension)) {
@@ -65,8 +65,17 @@ export async function POST(request) {
 
     // Create uploads directory if it doesn't exist
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    await mkdir(uploadsDir, { recursive: true });
-    console.log("API: Upload - Uploads directory ensured", { uploadsDir });
+    
+    try {
+      await mkdir(uploadsDir, { recursive: true });
+      console.log("API: Upload - Uploads directory ensured", { uploadsDir });
+    } catch (dirError) {
+      console.error("API: Upload - Error creating uploads directory", dirError);
+      return NextResponse.json(
+        { message: "Error creating uploads directory" },
+        { status: 500 }
+      );
+    }
     
     // Generate unique filename
     const uniqueFileName = `${uuidv4()}${fileExtension}`;
@@ -77,27 +86,35 @@ export async function POST(request) {
       uniqueFileName 
     });
     
-    // Convert file to buffer and save it
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, fileBuffer);
-    
-    console.log("API: Upload - File written successfully", { 
-      filePath, 
-      fileSize: fileBuffer.length 
-    });
-    
-    // Generate the URL for the uploaded file
-    const fileUrl = `/uploads/${uniqueFileName}`;
-    
-    console.log("API: Upload - Upload completed successfully", { fileUrl });
-    
-    // Return file information
-    return NextResponse.json({
-      url: fileUrl,
-      name: fileName,
-      type: fileType,
-      size: fileBuffer.length
-    });
+    try {
+      // Convert file to buffer and save it
+      const fileBuffer = Buffer.from(await file.arrayBuffer());
+      await writeFile(filePath, fileBuffer);
+      
+      console.log("API: Upload - File written successfully", { 
+        filePath, 
+        fileSize: fileBuffer.length 
+      });
+      
+      // Generate the URL for the uploaded file
+      const fileUrl = `/uploads/${uniqueFileName}`;
+      
+      console.log("API: Upload - Upload completed successfully", { fileUrl });
+      
+      // Return file information
+      return NextResponse.json({
+        url: fileUrl,
+        name: fileName,
+        type: fileType,
+        size: fileBuffer.length
+      });
+    } catch (writeError) {
+      console.error("API: Upload - Error writing file:", writeError);
+      return NextResponse.json(
+        { message: "Error writing file to disk", error: writeError.message },
+        { status: 500 }
+      );
+    }
 
   } catch (error) {
     console.error("API: Error uploading file:", error);

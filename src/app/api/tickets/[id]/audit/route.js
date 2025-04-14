@@ -13,9 +13,9 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin
-    if (session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
+    // Check if user has appropriate permissions (admin or helpdesk)
+    if (session.user.role !== 'admin' && session.user.role !== 'helpdesk') {
+      return NextResponse.json({ error: 'Forbidden - Admin or helpdesk access required' }, { status: 403 });
     }
 
     const ticketId = params.id;
@@ -34,20 +34,21 @@ export async function GET(request, { params }) {
       order: [['created_at', 'DESC']]
     });
     
+    // Always return a valid response, even if no audit entries are found
     return NextResponse.json({
-      auditTrail: auditTrail.map(entry => ({
+      auditTrail: auditTrail && auditTrail.length ? auditTrail.map(entry => ({
         id: entry.id,
         action: entry.action,
         previousValue: entry.previous_value,
         newValue: entry.new_value,
         details: entry.details,
         createdAt: entry.created_at,
-        user: {
+        user: entry.user ? {
           id: entry.user.id,
           name: entry.user.name,
           email: entry.user.email
-        }
-      }))
+        } : { id: 'unknown', name: 'Unknown User', email: '' }
+      })) : []
     });
     
   } catch (error) {

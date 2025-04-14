@@ -177,21 +177,41 @@ export default function AdminTicketDetailsPage({ params }) {
 
     try {
       setSendingMessage(true);
+      
+      // Prepare message data
+      const messageData = {
+        content: content.trim() || "", // Empty string if no content
+        ticketId,
+        receiverId: ticket.submitter.id
+      };
+      
+      // Add attachment data if provided
+      if (attachment) {
+        messageData.attachmentUrl = attachment.url;
+        messageData.attachmentType = attachment.type || 'application/octet-stream';
+        messageData.attachmentName = attachment.name || 'file';
+        
+        console.log("Adding attachment to message:", {
+          url: attachment.url,
+          type: attachment.type,
+          name: attachment.name
+        });
+      }
+      
+      console.log("Sending message data:", messageData);
+      
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          content,
-          ticketId,
-          receiverId: ticket.submitter.id
-        }),
+        body: JSON.stringify(messageData),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to send message');
+        const errorData = await response.text();
+        console.error("Error sending message:", errorData);
+        throw new Error(`Failed to send message: ${errorData}`);
       }
 
       // Fetch updated messages after sending
@@ -199,7 +219,7 @@ export default function AdminTicketDetailsPage({ params }) {
       scrollToBottom();
     } catch (err) {
       console.error('Error sending message:', err);
-      setError(err.message);
+      setError(err.message || "Failed to send message");
     } finally {
       setSendingMessage(false);
     }
@@ -402,6 +422,7 @@ export default function AdminTicketDetailsPage({ params }) {
               <TicketMessageInput
                 onSendMessage={handleSendMessage}
                 disabled={sendingMessage || ticket?.status === 'closed'}
+                disableAttachments={!ticket?.assignment?.helpdesk}
                 placeholder={ticket?.status === 'closed' ? "Ticket is closed" : "Type your message here..."}
               />
             </div>

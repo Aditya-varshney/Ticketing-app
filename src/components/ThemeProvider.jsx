@@ -1,25 +1,27 @@
 'use client';
 
+import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
+  const [mounted, setMounted] = useState(false);
 
+  // After mounting, we can access window
   useEffect(() => {
-    // Check if user has a theme preference in localStorage
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setIsDarkMode(savedTheme === 'dark');
-    } else {
-      // If no preference, check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDarkMode(prefersDark);
-    }
+    setMounted(true);
   }, []);
 
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  // Apply the theme changes
   useEffect(() => {
+    if (!mounted) return;
+    
     // Update localStorage and document class when theme changes
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
     if (isDarkMode) {
@@ -27,15 +29,28 @@ export function ThemeProvider({ children }) {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [isDarkMode]);
+  }, [isDarkMode, mounted]);
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  // Initialize theme from localStorage or system preference
+  useEffect(() => {
+    if (!mounted) return;
+    
+    // Check if user has a theme preference in localStorage
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === 'dark');
+    } else {
+      // If no preference, default to dark mode
+      setIsDarkMode(true);
+      localStorage.setItem('theme', 'dark');
+    }
+  }, [mounted]);
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
-      {children}
+      <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        {children}
+      </NextThemesProvider>
     </ThemeContext.Provider>
   );
 }

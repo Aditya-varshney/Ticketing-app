@@ -46,13 +46,36 @@ async function addTicketAuditTable() {
         new_value TEXT,
         details TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_id) REFERENCES form_submissions(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_ticket_audit_ticket (ticket_id),
         INDEX idx_ticket_audit_user (user_id),
         INDEX idx_ticket_audit_created (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    // Now add foreign keys separately to handle potential issues
+    try {
+      await connection.query(`
+        ALTER TABLE ticket_audits 
+        ADD CONSTRAINT fk_ticket_audit_ticket
+        FOREIGN KEY (ticket_id) REFERENCES form_submissions(id) 
+        ON DELETE CASCADE
+      `);
+      console.log('Added foreign key for ticket_id');
+    } catch (err) {
+      console.warn('Warning: Could not add ticket_id foreign key:', err.message);
+    }
+
+    try {
+      await connection.query(`
+        ALTER TABLE ticket_audits 
+        ADD CONSTRAINT fk_ticket_audit_user
+        FOREIGN KEY (user_id) REFERENCES users(id) 
+        ON DELETE CASCADE
+      `);
+      console.log('Added foreign key for user_id');
+    } catch (err) {
+      console.warn('Warning: Could not add user_id foreign key:', err.message);
+    }
 
     console.log('Ticket audit table created successfully');
 

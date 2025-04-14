@@ -96,9 +96,9 @@ export async function POST(request) {
     await connectToDatabase();
     
     const user = await User.findByPk(session.user.id);
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.role !== 'admin' && user.role !== 'helpdesk')) {
       return NextResponse.json(
-        { message: "Only admins can assign tickets" },
+        { message: "Only admins and helpdesk staff can assign tickets" },
         { status: 403 }
       );
     }
@@ -111,6 +111,14 @@ export async function POST(request) {
       return NextResponse.json(
         { message: "Ticket ID and helpdesk ID are required" },
         { status: 400 }
+      );
+    }
+
+    // If user is helpdesk, they can only assign tickets to themselves
+    if (user.role === 'helpdesk' && helpdeskId !== user.id) {
+      return NextResponse.json(
+        { message: "Helpdesk staff can only assign tickets to themselves" },
+        { status: 403 }
       );
     }
 
@@ -148,16 +156,22 @@ export async function POST(request) {
     });
 
     // Create audit entry
-    await TicketAudit.create({
-      ticket_id: ticketId,
-      user_id: user.id,
-      action: created ? 'ticket_assigned' : 'ticket_reassigned',
-      previous_value: currentAssignment ? currentAssignment.helpdesk.name : null,
-      new_value: helpdeskUser.name,
-      details: created 
-        ? `Ticket assigned to ${helpdeskUser.name}`
-        : `Ticket reassigned from ${currentAssignment.helpdesk.name} to ${helpdeskUser.name}`
-    });
+    try {
+      await TicketAudit.create({
+        id: uuidv4(),
+        ticket_id: ticketId,
+        user_id: user.id,
+        action: created ? 'ticket_assigned' : 'ticket_reassigned',
+        previous_value: currentAssignment ? currentAssignment.helpdesk.name : null,
+        new_value: helpdeskUser.name,
+        details: created 
+          ? `Ticket assigned to ${helpdeskUser.name}`
+          : `Ticket reassigned from ${currentAssignment.helpdesk.name} to ${helpdeskUser.name}`
+      });
+    } catch (error) {
+      console.warn("Warning: Could not create ticket audit entry:", error.message);
+      // Continue processing even if audit creation fails
+    }
 
     return NextResponse.json({
       message: created ? "Ticket assigned successfully" : "Ticket reassigned successfully",
@@ -188,9 +202,9 @@ export async function DELETE(request) {
     await connectToDatabase();
     
     const user = await User.findByPk(session.user.id);
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.role !== 'admin' && user.role !== 'helpdesk')) {
       return NextResponse.json(
-        { message: "Only admins can remove assignments" },
+        { message: "Only admins and helpdesk staff can remove assignments" },
         { status: 403 }
       );
     }
@@ -206,7 +220,7 @@ export async function DELETE(request) {
       );
     }
     
-    // Find and delete the assignment
+    // Find the assignment
     const assignment = await TicketAssignment.findOne({
       where: { ticket_id: ticketId }
     });
@@ -218,15 +232,29 @@ export async function DELETE(request) {
       );
     }
 
+    // If user is helpdesk, they can only remove assignments for themselves
+    if (user.role === 'helpdesk' && assignment.helpdesk_id !== user.id) {
+      return NextResponse.json(
+        { message: "Helpdesk staff can only remove their own assignments" },
+        { status: 403 }
+      );
+    }
+
     // Create audit entry for assignment removal
-    await TicketAudit.create({
-      ticket_id: ticketId,
-      user_id: user.id,
-      action: 'assigned',
-      previous_value: assignment.helpdesk_id,
-      new_value: null,
-      details: 'Assignment removed'
-    });
+    try {
+      await TicketAudit.create({
+        id: uuidv4(),
+        ticket_id: ticketId,
+        user_id: user.id,
+        action: 'assignment_removed',
+        previous_value: assignment.helpdesk_id,
+        new_value: null,
+        details: 'Assignment removed'
+      });
+    } catch (error) {
+      console.warn("Warning: Could not create ticket audit entry:", error.message);
+      // Continue processing even if audit creation fails
+    }
     
     await assignment.destroy();
     

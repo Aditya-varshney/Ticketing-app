@@ -54,6 +54,7 @@ export default function DashboardLayout({ children }) {
             <div className="flex items-center">
               {user && (
                 <div className="flex items-center space-x-4">
+                  <DarkModeToggle />
                   <span className="text-sm text-gray-700 dark:text-gray-300">
                     {user.name} ({user.role})
                   </span>
@@ -75,6 +76,7 @@ export default function DashboardLayout({ children }) {
           {children}
         </div>
       </main>
+      <Chatbot />
     </div>
   );
 } 

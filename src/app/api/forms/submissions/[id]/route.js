@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mariadb/connect';
 import { User, FormSubmission, FormTemplate, TicketAssignment, TicketAudit } from '@/lib/mariadb/models';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mark this route as dynamic to prevent caching
 export const dynamic = 'force-dynamic';
@@ -272,6 +273,41 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // Create audit entries for each change
+    try {
+      // Status change audit
+      if (status !== ticket.status) {
+        console.log(`Creating audit for status change: ${ticket.status} -> ${status}`);
+        await TicketAudit.create({
+          id: uuidv4(),
+          ticket_id: id,
+          user_id: session.user.id,
+          action: 'status_change',
+          previous_value: ticket.status,
+          new_value: status,
+          details: `Status changed from ${ticket.status} to ${status} by ${user.name} (${user.role})`
+        });
+      }
+      
+      // Priority change audit
+      if (priority !== ticket.priority) {
+        console.log(`Creating audit for priority change: ${ticket.priority} -> ${priority}`);
+        await TicketAudit.create({
+          id: uuidv4(),
+          ticket_id: id,
+          user_id: session.user.id,
+          action: 'priority_change',
+          previous_value: ticket.priority,
+          new_value: priority,
+          details: `Priority changed from ${ticket.priority} to ${priority} by ${user.name} (${user.role})`
+        });
+      }
+    } catch (auditError) {
+      // Just log the error but continue with the ticket update
+      console.error("Error creating audit entry:", auditError);
+      console.warn("Continuing with ticket update despite audit error");
+    }
+
     // Update the ticket
     const updateData = {
       ...(status && { status }),
@@ -282,20 +318,6 @@ export async function PUT(request, { params }) {
 
     console.log("Updating ticket with data:", updateData);
     await ticket.update(updateData);
-
-    // Create audit entries for each change
-    for (const change of changes) {
-      await TicketAudit.create({
-        ticket_id: id,
-        user_id: user.id,
-        action: change.action,
-        field: change.field,
-        previous_value: change.previous_value,
-        new_value: change.new_value,
-        details: change.details,
-        created_at: change.timestamp
-      });
-    }
 
     // Fetch the updated ticket with all its data
     const updatedTicket = await FormSubmission.findByPk(id, {

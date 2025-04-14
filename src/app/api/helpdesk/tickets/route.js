@@ -68,7 +68,8 @@ export async function GET(request) {
       });
     }
     
-    return NextResponse.json(tickets);
+    // Ensure we always return an array, even if no tickets found
+    return NextResponse.json(tickets || []);
   } catch (error) {
     console.error("Error fetching helpdesk tickets:", error);
     return NextResponse.json(

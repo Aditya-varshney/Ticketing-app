@@ -112,18 +112,17 @@ async function verifyColumns() {
     
   } catch (error) {
     console.error('Error verifying columns:', error);
+    process.exit(1);
   } finally {
-    if (connection) await connection.end();
+    if (connection) {
+      await connection.end();
+      console.log('Database connection closed');
+    }
   }
 }
 
 // Run the verification
-verifyColumns()
-  .then(() => {
-    console.log('Completed verification process');
-    process.exit(0);
-  })
-  .catch(err => {
-    console.error('Failed to verify columns:', err);
-    process.exit(1);
-  }); 
+verifyColumns().catch(error => {
+  console.error('Unhandled error:', error);
+  process.exit(1);
+}); 

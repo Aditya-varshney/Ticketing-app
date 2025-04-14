@@ -112,7 +112,8 @@ export async function GET(request) {
     });
     
     console.log(`GET /api/forms/submissions - Found ${submissions.length} total submissions`);
-    return NextResponse.json(submissions);
+    // Always return an array, even if it's empty
+    return NextResponse.json(submissions || []);
   } catch (error) {
     console.error("Error fetching form submissions:", error);
     return NextResponse.json(

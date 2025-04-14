@@ -13,7 +13,7 @@ export default function HelpdeskDashboard() {
   const router = useRouter();
   const [allTickets, setAllTickets] = useState([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' or 'assigned'
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'assigned', or 'unassigned'
   const [notification, setNotification] = useState(null);
   const [assigning, setAssigning] = useState(false);
   
@@ -108,7 +108,7 @@ export default function HelpdeskDashboard() {
         },
         body: JSON.stringify({
           ticketId: ticketId,
-          selfAssign: true
+          helpdeskId: user.id  // Add the helpdesk ID (current user) explicitly
         }),
       });
       
@@ -163,6 +163,8 @@ export default function HelpdeskDashboard() {
     
     if (activeTab === 'assigned') {
       filtered = getMyAssignedTickets();
+    } else if (activeTab === 'unassigned') {
+      filtered = getUnassignedTickets();
     }
     
     return filtered;
@@ -200,6 +202,13 @@ export default function HelpdeskDashboard() {
     });
   };
 
+  // Add function to get unassigned tickets
+  const getUnassignedTickets = () => {
+    return allTickets.filter(ticket => 
+      !ticket.assignment && ticket.status !== 'resolved' && ticket.status !== 'closed'
+    );
+  };
+
   if (loading || loadingTickets) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -234,6 +243,35 @@ export default function HelpdeskDashboard() {
         </div>
       )}
 
+      {/* Unassigned tickets notification */}
+      {getUnassignedTickets().length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <h3 className="text-lg font-medium text-yellow-800 dark:text-yellow-200">Unassigned Tickets</h3>
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  There {getUnassignedTickets().length === 1 ? 'is' : 'are'} {getUnassignedTickets().length} unassigned {getUnassignedTickets().length === 1 ? 'ticket' : 'tickets'} that need attention.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setActiveTab('all');
+                setSortField('created_at');
+                setSortDirection('desc');
+              }}
+            >
+              View All Tickets
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6">
         {/* Tabs Navigation */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
@@ -263,13 +301,32 @@ export default function HelpdeskDashboard() {
                 </span>
               )}
             </button>
+            <button
+              className={`px-6 py-3 text-md font-medium relative ${
+                activeTab === 'unassigned'
+                  ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+              onClick={() => setActiveTab('unassigned')}
+            >
+              Unassigned Tickets
+              {getUnassignedTickets().length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-yellow-500 rounded-full">
+                  {getUnassignedTickets().length}
+                </span>
+              )}
+            </button>
           </div>
         
           {/* Ticket List Section */}
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">
-                {activeTab === 'assigned' ? 'My Assigned Tickets' : 'All Tickets'}
+                {activeTab === 'assigned' 
+                  ? 'My Assigned Tickets' 
+                  : activeTab === 'unassigned'
+                    ? 'Unassigned Tickets'
+                    : 'All Tickets'}
               </h2>
               
               {/* Add sorting options */}
@@ -504,7 +561,9 @@ export default function HelpdeskDashboard() {
                       <td colSpan="7" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                         {activeTab === 'assigned' 
                           ? "You don't have any assigned tickets yet." 
-                          : "No tickets available."}
+                          : activeTab === 'unassigned'
+                            ? 'No unassigned tickets available.'
+                            : 'No tickets available.'}
                       </td>
                     </tr>
                   )}

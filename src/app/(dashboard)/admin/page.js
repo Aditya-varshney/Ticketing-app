@@ -581,7 +581,8 @@ export default function AdminDashboard() {
         }
         
         const tickets = await ticketsResponse.json();
-        setRecentTickets(tickets);
+        // Set an empty array if no tickets are returned (tickets could be null or undefined)
+        setRecentTickets(Array.isArray(tickets) ? tickets : []);
         
       } catch (error) {
         console.error('Error fetching helpdesk staff data:', error);

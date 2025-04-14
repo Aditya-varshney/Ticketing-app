@@ -9,6 +9,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import PriorityBadge from '@/components/ui/PriorityBadge';
 import TicketMessageInput from '@/components/chat/TicketMessageInput';
 import TicketMessageItem from '@/components/chat/TicketMessageItem';
+import { format } from 'date-fns';
 
 export default function HelpdeskTicketDetailsPage({ params }) {
   const ticketId = params.id;
@@ -20,6 +21,7 @@ export default function HelpdeskTicketDetailsPage({ params }) {
   const [updating, setUpdating] = useState(false);
   const [notification, setNotification] = useState(null);
   const [status, setStatus] = useState('open');
+  const [assigningTicket, setAssigningTicket] = useState(false);
   
   // Chat state variables
   const [messages, setMessages] = useState([]);
@@ -39,6 +41,10 @@ export default function HelpdeskTicketDetailsPage({ params }) {
     }
     return [];
   });
+  
+  // Add state for audit trail
+  const [auditTrail, setAuditTrail] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -101,21 +107,52 @@ export default function HelpdeskTicketDetailsPage({ params }) {
     }
   };
   
+  // Fetch audit trail
+  const fetchAuditTrail = async () => {
+    if (!isAuthenticated || !ticketId) return;
+    
+    try {
+      setLoadingAudit(true);
+      const response = await fetch(`/api/tickets/${ticketId}/audit`);
+      
+      if (!response.ok) {
+        console.warn('Failed to fetch audit trail - may not have permission');
+        return;
+      }
+      
+      const data = await response.json();
+      setAuditTrail(data.auditTrail || []);
+    } catch (error) {
+      console.error('Error fetching audit trail:', error);
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+  
   useEffect(() => {
     // Fetch ticket details when component mounts
     if (isAuthenticated && ticketId) {
       fetchTicket();
+      fetchAuditTrail();
     }
   }, [isAuthenticated, ticketId, user]);
   
   // Function to fetch messages
   const fetchMessages = async (submitterId) => {
+    if (!submitterId) {
+      console.log('No submitter ID available, skipping message fetch');
+      setLoadingMessages(false);
+      return;
+    }
+    
     try {
       setLoadingMessages(true);
-      const response = await fetch(`/api/chat/messages?userId=${submitterId}&ticketId=${ticketId}`);
+      console.log(`Fetching messages for user ${submitterId} (submitter) - ticketId: ${ticketId}, userId: ${submitterId}`);
+      
+      const response = await fetch(`/api/chat/messages?ticketId=${ticketId}&userId=${submitterId}`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch messages');
+        throw new Error(`Error ${response.status}: ${await response.text()}`);
       }
       
       const data = await response.json();
@@ -145,17 +182,25 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       
       // Prepare message data
       const messageData = {
-        content: content || 'Attachment',
-        userId: ticket.submitter.id,
+        content: content.trim() || "", // Empty string if no content
+        receiverId: ticket.submitter.id,
         ticketId: ticketId
       };
       
       // Add attachment data if provided
       if (attachment) {
         messageData.attachmentUrl = attachment.url;
-        messageData.attachmentType = attachment.type;
-        messageData.attachmentName = attachment.name;
+        messageData.attachmentType = attachment.type || 'application/octet-stream';
+        messageData.attachmentName = attachment.name || 'file';
+        
+        console.log("Adding attachment to message:", {
+          url: attachment.url,
+          type: attachment.type,
+          name: attachment.name
+        });
       }
+      
+      console.log("Sending message data:", messageData);
       
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
@@ -166,7 +211,9 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error('Failed to send message: ' + errorText);
       }
       
       // Refresh messages
@@ -175,7 +222,7 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       console.error('Error sending message:', error);
       setNotification({
         type: 'error',
-        message: 'Failed to send message'
+        message: error.message || 'Failed to send message'
       });
     } finally {
       setSendingMessage(false);
@@ -227,7 +274,9 @@ export default function HelpdeskTicketDetailsPage({ params }) {
           }),
         });
         
-        if (messageResponse.ok) {
+        if (!messageResponse.ok) {
+          console.warn('Failed to send resolved notification message:', await messageResponse.text());
+        } else {
           fetchMessages(ticket.submitter.id);
         }
       }
@@ -263,10 +312,12 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       
       // Send the quick reply through the same message path as normal messages
       const messageData = {
-        content: message,
-        userId: ticket.submitter.id,
+        content: message.trim(),
+        receiverId: ticket.submitter.id,
         ticketId: ticketId
       };
+      
+      console.log("Sending quick reply:", messageData);
       
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
@@ -277,6 +328,8 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       });
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Quick reply error:", errorText);
         throw new Error('Failed to send quick reply');
       }
       
@@ -305,6 +358,162 @@ export default function HelpdeskTicketDetailsPage({ params }) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('customQuickReplies', JSON.stringify(newReplies));
       }
+    }
+  };
+  
+  // Function to assign ticket to current user
+  const handleAssignToMe = async () => {
+    if (!isAuthenticated || !user?.id || !ticketId) return;
+    
+    try {
+      setAssigningTicket(true);
+      
+      // First assign the ticket to current user
+      const response = await fetch('/api/assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticketId: ticketId,
+          helpdeskId: user.id
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to assign ticket');
+      }
+      
+      // Then update ticket status to "in_progress" if it's not already resolved or closed
+      if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
+        const statusUpdateResponse = await fetch(`/api/forms/submissions?id=${ticketId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'in_progress'
+          }),
+        });
+        
+        if (!statusUpdateResponse.ok) {
+          console.warn('Failed to update ticket status, but assignment was successful');
+        } else {
+          // Update local state
+          setStatus('in_progress');
+        }
+      }
+      
+      // Send an automatic message to the submitter
+      if (ticket.submitter?.id) {
+        try {
+          const messageResponse = await fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              content: `Hi ${ticket.submitter.name}, I've been assigned to help with your ticket. I'll be reviewing the details and will get back to you shortly.`,
+              userId: ticket.submitter.id,
+              ticketId: ticketId
+            }),
+          });
+          
+          if (!messageResponse.ok) {
+            console.warn('Failed to send automatic assignment message:', await messageResponse.text());
+          } else {
+            // Refresh messages
+            fetchMessages(ticket.submitter.id);
+          }
+        } catch (msgError) {
+          console.error('Failed to send automatic message, but assignment was successful:', msgError);
+        }
+      }
+      
+      // Refresh the ticket data
+      await fetchTicket();
+      
+      setNotification({
+        type: 'success',
+        message: 'Ticket assigned to you successfully'
+      });
+    } catch (error) {
+      console.error('Error assigning ticket:', error);
+      setNotification({
+        type: 'error',
+        message: error.message || 'Failed to assign ticket'
+      });
+    } finally {
+      setAssigningTicket(false);
+      
+      // Clear notification after 5 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+    }
+  };
+  
+  // Function to unassign ticket
+  const handleUnassignTicket = async () => {
+    if (!isAuthenticated || !user?.id || !ticketId) return;
+    
+    try {
+      setAssigningTicket(true);
+      
+      const response = await fetch(`/api/assignments?ticketId=${ticketId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to unassign ticket');
+      }
+      
+      // Refresh the ticket data
+      await fetchTicket();
+      
+      setNotification({
+        type: 'success',
+        message: 'Ticket unassigned successfully'
+      });
+    } catch (error) {
+      console.error('Error unassigning ticket:', error);
+      setNotification({
+        type: 'error',
+        message: error.message || 'Failed to unassign ticket'
+      });
+    } finally {
+      setAssigningTicket(false);
+      
+      // Clear notification after 5 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+    }
+  };
+  
+  // Function to format audit action text
+  const formatActionText = (action) => {
+    return action.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+  
+  // Function to determine color based on action type
+  const getActionColor = (action) => {
+    switch (action) {
+      case 'status_change':
+        return 'text-yellow-600 dark:text-yellow-400';
+      case 'priority_change':
+        return 'text-orange-600 dark:text-orange-400';
+      case 'ticket_assigned':
+      case 'ticket_reassigned':
+        return 'text-purple-600 dark:text-purple-400';
+      case 'assignment_removed':
+        return 'text-red-600 dark:text-red-400';
+      default:
+        return 'text-gray-600 dark:text-gray-400';
     }
   };
   
@@ -432,6 +641,7 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                     onSendMessage={handleSendMessage}
                     disabled={sendingMessage || ticket?.status === 'closed'}
                     placeholder={ticket?.status === 'closed' ? "Ticket is closed" : "Type your message here..."}
+                    disableAttachments={!ticket?.assignment || !ticket?.assignment?.helpdesk}
                   />
                   
                   <div className="mt-4">
@@ -535,16 +745,39 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                   <p className="text-sm text-gray-500 dark:text-gray-400">Assigned To</p>
                   <div className="mt-1">
                     {ticket.assignment && ticket.assignment.helpdesk ? (
-                      <div className="flex items-center">
-                        <Avatar
-                          name={ticket.assignment.helpdesk.name}
-                          size="sm"
-                          className="mr-2"
-                        />
-                        <span>{ticket.assignment.helpdesk.name}</span>
+                      <div className="flex flex-col">
+                        <div className="flex items-center mb-2">
+                          <Avatar
+                            name={ticket.assignment.helpdesk.name}
+                            size="sm"
+                            className="mr-2"
+                          />
+                          <span>{ticket.assignment.helpdesk.name}</span>
+                        </div>
+                        {ticket.assignment.helpdesk.id === user?.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={handleUnassignTicket}
+                            disabled={assigningTicket}
+                          >
+                            {assigningTicket ? 'Processing...' : 'Unassign'}
+                          </Button>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-yellow-600 dark:text-yellow-400">Unassigned</span>
+                      <div className="flex flex-col">
+                        <span className="text-yellow-600 dark:text-yellow-400 mb-2">Unassigned</span>
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={handleAssignToMe}
+                          disabled={assigningTicket}
+                        >
+                          {assigningTicket ? 'Assigning...' : 'Assign to Me'}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -615,6 +848,44 @@ export default function HelpdeskTicketDetailsPage({ params }) {
                 </div>
               ) : (
                 <p className="text-gray-500">Ticket not found</p>
+              )}
+            </div>
+
+            {/* Ticket Audit Trail */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold mb-4">Ticket History</h3>
+              
+              {loadingAudit ? (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : auditTrail.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No history available</p>
+              ) : (
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {auditTrail.map(entry => (
+                    <div key={entry.id} className="py-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`font-medium ${getActionColor(entry.action)}`}>
+                          {formatActionText(entry.action)}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {format(new Date(entry.createdAt), 'MMM d, yyyy HH:mm')}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                        {entry.details || (
+                          <>
+                            Changed from <span className="font-medium">{entry.previousValue}</span> to <span className="font-medium">{entry.newValue}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        By: {entry.user?.name || 'Unknown user'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

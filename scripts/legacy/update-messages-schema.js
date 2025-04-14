@@ -57,7 +57,7 @@ async function updateMessagesSchema() {
       console.log('Adding attachment_url column to messages table...');
       await connection.query(`
         ALTER TABLE messages 
-        ADD COLUMN attachment_url VARCHAR(255) NULL
+        ADD COLUMN attachment_url VARCHAR(255)
       `);
       console.log('Added attachment_url column to messages table');
     } else {
@@ -73,7 +73,7 @@ async function updateMessagesSchema() {
       console.log('Adding attachment_type column to messages table...');
       await connection.query(`
         ALTER TABLE messages 
-        ADD COLUMN attachment_type VARCHAR(50) NULL
+        ADD COLUMN attachment_type VARCHAR(50)
       `);
       console.log('Added attachment_type column to messages table');
     } else {
@@ -89,29 +89,28 @@ async function updateMessagesSchema() {
       console.log('Adding attachment_name column to messages table...');
       await connection.query(`
         ALTER TABLE messages 
-        ADD COLUMN attachment_name VARCHAR(255) NULL
+        ADD COLUMN attachment_name VARCHAR(255)
       `);
       console.log('Added attachment_name column to messages table');
     } else {
       console.log('attachment_name column already exists in messages table');
     }
     
-    console.log('Database schema update completed successfully');
+    console.log('Successfully updated messages table schema');
     
   } catch (error) {
-    console.error('Error updating schema:', error);
+    console.error('Error:', error);
+    process.exit(1);
   } finally {
-    if (connection) await connection.end();
+    if (connection) {
+      await connection.end();
+      console.log('Database connection closed');
+    }
   }
 }
 
-// Run the update
-updateMessagesSchema()
-  .then(() => {
-    console.log('Completed schema update process');
-    process.exit(0);
-  })
-  .catch(err => {
-    console.error('Failed to update schema:', err);
-    process.exit(1);
-  }); 
+// Run the migration
+updateMessagesSchema().catch(error => {
+  console.error('Unhandled error:', error);
+  process.exit(1);
+}); 

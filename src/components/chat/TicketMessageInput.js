@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Button from '../ui/Button';
 
-export default function TicketMessageInput({ onSendMessage, disabled = false, placeholder = "Type your message..." }) {
+export default function TicketMessageInput({ onSendMessage, disabled = false, disableAttachments = false, placeholder = "Type your message..." }) {
   const [message, setMessage] = useState('');
   const [attachment, setAttachment] = useState(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -19,23 +19,37 @@ export default function TicketMessageInput({ onSendMessage, disabled = false, pl
         const formData = new FormData();
         formData.append('file', attachment);
         
+        console.log("Uploading attachment:", {
+          name: attachment.name, 
+          type: attachment.type, 
+          size: attachment.size
+        });
+        
         const uploadResponse = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
         });
         
         if (!uploadResponse.ok) {
-          throw new Error('Failed to upload attachment');
+          const errorData = await uploadResponse.text();
+          console.error("Upload failed:", errorData);
+          throw new Error('Failed to upload attachment: ' + errorData);
         }
         
         const attachmentData = await uploadResponse.json();
+        console.log("Attachment uploaded successfully:", attachmentData);
         
-        // Send message with attachment
-        await onSendMessage(message, {
+        // Send message with attachment - ensuring data is properly structured
+        const attachmentInfo = {
           url: attachmentData.url,
-          type: attachmentData.type,
-          name: attachmentData.name
-        });
+          type: attachmentData.type || attachment.type,
+          name: attachmentData.name || attachment.name
+        };
+        
+        console.log("Sending with attachment info:", attachmentInfo);
+        
+        // Always pass the message content (even if empty) and the well-structured attachment info
+        await onSendMessage(message.trim(), attachmentInfo);
       } else {
         // Send text-only message
         await onSendMessage(message);
@@ -46,7 +60,7 @@ export default function TicketMessageInput({ onSendMessage, disabled = false, pl
       setAttachment(null);
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message. Please try again.');
+      alert('Failed to send message: ' + error.message);
     } finally {
       setUploadingAttachment(false);
     }
@@ -89,10 +103,13 @@ export default function TicketMessageInput({ onSendMessage, disabled = false, pl
         {/* Attachment button */}
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={disabled || uploadingAttachment}
+          onClick={() => !disableAttachments && fileInputRef.current?.click()}
+          className={`px-3 py-2 ${disableAttachments 
+            ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+            : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+          disabled={disabled || uploadingAttachment || disableAttachments}
           aria-label="Attach file"
+          title={disableAttachments ? "Attachments are only available for assigned tickets" : "Attach file"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -103,6 +120,7 @@ export default function TicketMessageInput({ onSendMessage, disabled = false, pl
             onChange={handleFileChange}
             className="hidden"
             accept=".png,.jpg,.jpeg,.pdf,.docx,.xlsx,.txt"
+            disabled={disableAttachments}
           />
         </button>
         

@@ -152,8 +152,8 @@ export default function UserTicketDetailsPage({ params }) {
       
       // Prepare message data
       const messageData = {
-        content: content || 'Attachment',
-        userId: ticket.helpdesk_id,
+        content: content || '',
+        receiverId: ticket.helpdesk_id,
         ticketId: ticketId
       };
       
@@ -162,6 +162,14 @@ export default function UserTicketDetailsPage({ params }) {
         messageData.attachmentUrl = attachment.url;
         messageData.attachmentType = attachment.type;
         messageData.attachmentName = attachment.name;
+        
+        console.log("Sending message with attachment:", {
+          content,
+          ticketId,
+          attachmentUrl: attachment.url,
+          attachmentType: attachment.type,
+          attachmentName: attachment.name
+        });
       }
       
       // Send message
@@ -174,7 +182,9 @@ export default function UserTicketDetailsPage({ params }) {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorText = await response.text();
+        console.error("Error sending message:", errorText);
+        throw new Error(`Failed to send message: ${errorText}`);
       }
       
       // Refresh messages to include the new one
@@ -183,7 +193,7 @@ export default function UserTicketDetailsPage({ params }) {
       console.error('Error sending message:', error);
       setNotification({
         type: 'error',
-        message: 'Failed to send message'
+        message: error.message || 'Failed to send message'
       });
     } finally {
       setSendingMessage(false);
@@ -416,6 +426,7 @@ export default function UserTicketDetailsPage({ params }) {
                 <TicketMessageInput
                   onSendMessage={handleSendMessage}
                   disabled={sendingMessage || ticket.status === 'revoked' || ticket.status === 'closed'}
+                  disableAttachments={!ticket.assignment?.helpdesk_id}
                   placeholder={
                     ticket.status === 'revoked' 
                       ? "Ticket has been revoked" 

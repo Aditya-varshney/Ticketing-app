@@ -62,8 +62,17 @@ const TicketAuditTrail = ({ ticketId }) => {
 
   if (error) {
     return (
-      <div className="p-4 text-red-600 dark:text-red-400">
-        Error: {error}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="px-4 py-5 sm:px-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+            Ticket Audit Trail
+          </h3>
+        </div>
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-gray-500 dark:text-gray-400 text-center">
+            No audit history is available yet. Changes to this ticket will appear here.
+          </p>
+        </div>
       </div>
     );
   }
