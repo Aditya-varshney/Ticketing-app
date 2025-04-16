@@ -42,7 +42,7 @@ const appUser = {
 // Required tables for the application
 const requiredTables = [
   'users',
-  'forms',
+  'form_templates', // Changed from 'forms' to match schema
   'form_submissions',
   'chat_messages',
   'audit_logs',
@@ -785,8 +785,8 @@ async function insertSampleData() {
     // Create sample form
     log('Creating sample form...', 'info');
     await connection.query(`
-      INSERT INTO forms (id, title, description, fields, created_by) VALUES
-      (UUID(), 'IT Support Request', 'Use this form to request IT support', 
+      INSERT INTO form_templates (id, name, fields, created_by) VALUES
+      (UUID(), 'IT Support Request', 
        '${JSON.stringify([
          {
            id: "issue_type",
@@ -813,14 +813,14 @@ async function insertSampleData() {
     `);
     
     // Get form ID and user ID for ticket creation
-    const [formResult] = await connection.query("SELECT id FROM forms WHERE title = 'IT Support Request'");
+    const [formResult] = await connection.query("SELECT id FROM form_templates WHERE name = 'IT Support Request'");
     const formId = formResult[0].id;
     
     // Create sample ticket
     log('Creating sample ticket...', 'info');
     await connection.query(`
-      INSERT INTO form_submissions (id, form_id, submitter_id, assigned_to, assigned_by, form_data, status, priority) VALUES
-      (UUID(), '${formId}', '${userId}', '${helpdeskId}', '${adminId}',
+      INSERT INTO form_submissions (id, form_template_id, submitted_by, form_data, status, priority) VALUES
+      (UUID(), '${formId}', '${userId}', 
       '${JSON.stringify({
         issue_type: "Software",
         description: "My email client is not syncing properly",
@@ -909,8 +909,8 @@ async function checkSampleData() {
     
     const hasUsers = userResult[0].count > 0;
     
-    // Check forms
-    const [formResult] = await connection.query(`SELECT COUNT(*) as count FROM forms`);
+    // Check forms - use form_templates instead of forms
+    const [formResult] = await connection.query(`SELECT COUNT(*) as count FROM form_templates`);
     const hasForms = formResult[0].count > 0;
     
     // Check tickets
@@ -1582,8 +1582,7 @@ async function verifyColumns() {
     // Expected columns for key tables
     const expectedColumns = {
       'form_submissions': [
-        'id', 'form_id', 'submitter_id', 'assigned_to', 'assigned_by',
-        'form_data', 'status', 'priority', 'created_at', 'updated_at'
+        'id', 'form_template_id', 'submitted_by', 'form_data', 'status', 'priority', 'created_at', 'updated_at'
       ],
       'chat_messages': [
         'id', 'ticket_id', 'sender_id', 'receiver_id', 'content',
@@ -2097,4 +2096,4 @@ if (require.main === module) {
     }
     process.exit(1);
   });
-} 
+}
