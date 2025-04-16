@@ -41,9 +41,10 @@ export default function TicketMessageInput({ onSendMessage, disabled = false, di
         
         // Send message with attachment - ensuring data is properly structured
         const attachmentInfo = {
-          url: attachmentData.url,
-          type: attachmentData.type || attachment.type,
-          name: attachmentData.name || attachment.name
+          attachmentUrl: attachmentData.url,
+          attachmentType: attachmentData.type || attachment.type,
+          attachmentName: attachmentData.name || attachment.name,
+          attachmentSize: attachmentData.size || attachment.size
         };
         
         console.log("Sending with attachment info:", attachmentInfo);

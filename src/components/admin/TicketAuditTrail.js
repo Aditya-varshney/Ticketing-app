@@ -7,25 +7,50 @@ const TicketAuditTrail = ({ ticketId }) => {
   const [auditTrail, setAuditTrail] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const fetchAuditTrail = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Fetching audit trail for ticket:', ticketId);
+      const response = await fetch(`/api/tickets/${ticketId}/audit`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Audit trail fetch failed with status:', response.status, errorData);
+        throw new Error(errorData.error || `Failed to fetch audit trail (${response.status})`);
+      }
+      
+      const data = await response.json();
+      console.log('Audit trail data received:', data);
+      
+      if (Array.isArray(data.auditTrail)) {
+        setAuditTrail(data.auditTrail);
+      } else {
+        console.warn('Unexpected audit trail data format:', data);
+        setAuditTrail([]);
+      }
+    } catch (err) {
+      console.error('Error in audit trail fetch:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchAuditTrail = async () => {
-      try {
-        const response = await fetch(`/api/tickets/${ticketId}/audit`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch audit trail');
-        }
-        const data = await response.json();
-        setAuditTrail(data.auditTrail);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (ticketId) {
+      fetchAuditTrail();
+    } else {
+      setError('No ticket ID provided');
+      setLoading(false);
+    }
+  }, [ticketId, retryCount]);
 
-    fetchAuditTrail();
-  }, [ticketId]);
+  const handleRetry = () => {
+    setRetryCount(count => count + 1);
+  };
 
   const getActionColor = (action) => {
     switch (action) {
@@ -69,6 +94,31 @@ const TicketAuditTrail = ({ ticketId }) => {
           </h3>
         </div>
         <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-red-500 dark:text-red-400 text-center">
+            Error loading audit trail: {error}
+          </p>
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={handleRetry}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (auditTrail.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="px-4 py-5 sm:px-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+            Ticket Audit Trail
+          </h3>
+        </div>
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4">
           <p className="text-gray-500 dark:text-gray-400 text-center">
             No audit history is available yet. Changes to this ticket will appear here.
           </p>
@@ -98,21 +148,23 @@ const TicketAuditTrail = ({ ticketId }) => {
                   </span>
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-300">
-                  By: {entry.user.name} ({entry.user.email})
+                  By: {entry.user?.name || 'Unknown'} {entry.user?.email ? `(${entry.user.email})` : ''}
                 </div>
-                {entry.previousValue && entry.newValue && (
+                {(entry.previousValue || entry.previous_value) && (entry.newValue || entry.new_value) && (
                   <div className="text-sm">
                     <div className="text-gray-500 dark:text-gray-400">
-                      From: <span className="text-gray-700 dark:text-gray-300">{entry.previousValue}</span>
+                      From: <span className="text-gray-700 dark:text-gray-300">{entry.previousValue || entry.previous_value}</span>
                     </div>
                     <div className="text-gray-500 dark:text-gray-400">
-                      To: <span className="text-gray-700 dark:text-gray-300">{entry.newValue}</span>
+                      To: <span className="text-gray-700 dark:text-gray-300">{entry.newValue || entry.new_value}</span>
                     </div>
                   </div>
                 )}
                 {entry.details && (
                   <div className="text-sm text-gray-600 dark:text-gray-300">
-                    {entry.details}
+                    {typeof entry.details === 'string' 
+                      ? entry.details 
+                      : JSON.stringify(entry.details)}
                   </div>
                 )}
               </div>

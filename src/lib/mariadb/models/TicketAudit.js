@@ -10,14 +10,6 @@ const TicketAudit = sequelize.define('TicketAudit', {
     defaultValue: () => uuidv4(),
     primaryKey: true
   },
-  ticket_id: {
-    type: DataTypes.STRING(36),
-    allowNull: false,
-    references: {
-      model: 'form_submissions',
-      key: 'id'
-    }
-  },
   user_id: {
     type: DataTypes.STRING(36),
     allowNull: false,
@@ -27,9 +19,18 @@ const TicketAudit = sequelize.define('TicketAudit', {
     }
   },
   action: {
-    type: DataTypes.STRING(50),
+    type: DataTypes.STRING(255),
+    allowNull: false
+  },
+  entity_type: {
+    type: DataTypes.STRING(255),
     allowNull: false,
-    // Possible values: created, updated, assigned, status_changed, priority_changed, revoked
+    defaultValue: 'ticket'
+  },
+  entity_id: {
+    type: DataTypes.STRING(36),
+    allowNull: false,
+    // This will store the ticket_id
   },
   previous_value: {
     type: DataTypes.TEXT,
@@ -40,18 +41,39 @@ const TicketAudit = sequelize.define('TicketAudit', {
     allowNull: true
   },
   details: {
-    type: DataTypes.TEXT,
-    allowNull: true
+    type: DataTypes.JSON,
+    allowNull: true,
+    get() {
+      const rawValue = this.getDataValue('details');
+      if (rawValue) {
+        try {
+          return typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+        } catch (e) {
+          return rawValue;
+        }
+      }
+      return null;
+    },
+    set(value) {
+      if (value) {
+        this.setDataValue('details', 
+          typeof value === 'string' ? value : JSON.stringify(value)
+        );
+      } else {
+        this.setDataValue('details', null);
+      }
+    }
   }
 }, {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: false,
-  tableName: 'ticket_audits'
+  tableName: 'audit_logs'
 });
 
 // Define associations
 TicketAudit.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
-TicketAudit.belongsTo(FormSubmission, { foreignKey: 'ticket_id', as: 'ticket' });
+// Use entity_id as the alias for ticket association
+TicketAudit.belongsTo(FormSubmission, { foreignKey: 'entity_id', as: 'ticket', constraints: false });
 
 export default TicketAudit; 

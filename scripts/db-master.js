@@ -1375,6 +1375,8 @@ async function applyMigration(migrationName) {
       return await updateTicketIdSchema();
     case 'verify-columns':
       return await verifyColumns();
+    case 'fix-audit-logs':
+      return await addAuditLogColumns();
     default:
       log(`Unknown migration: ${migrationName}`, 'error');
       return { success: false, reason: `Unknown migration: ${migrationName}` };
@@ -1666,7 +1668,8 @@ async function runAllMigrations() {
     'ticket-id',
     'message-attachments',
     'ticket-audit',
-    'fix-collation'
+    'fix-collation',
+    'fix-audit-logs'
   ];
   
   const results = {};
@@ -1698,6 +1701,93 @@ async function runAllMigrations() {
   }
   
   return { success: allSuccessful, results };
+}
+
+/**
+ * Adds and migrates columns for audit logs
+ */
+async function addAuditLogColumns() {
+  let connection;
+  try {
+    log('Adding audit log columns...', 'step');
+    const result = await getDatabaseConnection();
+    
+    if (!result.success) {
+      return result;
+    }
+    
+    connection = result.connection;
+    
+    // First check if the columns exist
+    const [columns] = await connection.query(`
+      SHOW COLUMNS FROM audit_logs LIKE 'previous_value'
+    `);
+    
+    if (columns.length === 0) {
+      log('Adding previous_value and new_value columns to audit_logs table...', 'info');
+      await connection.query(`
+        ALTER TABLE audit_logs
+        ADD COLUMN previous_value TEXT AFTER entity_id,
+        ADD COLUMN new_value TEXT AFTER previous_value
+      `);
+      log('Columns added successfully', 'success');
+      
+      // Migrate any existing data
+      log('Migrating existing audit data...', 'info');
+      const [records] = await connection.query(`
+        SELECT id, details
+        FROM audit_logs
+        WHERE details IS NOT NULL
+          AND (previous_value IS NULL OR previous_value = '')
+      `);
+      
+      log(`Found ${records.length} records to migrate`, 'info');
+      
+      let migratedCount = 0;
+      for (const record of records) {
+        try {
+          const details = typeof record.details === 'string' 
+            ? JSON.parse(record.details) 
+            : record.details;
+          
+          if (details && (details.previous_value || details.previousValue || details.from)) {
+            const previousValue = details.previous_value || details.previousValue || details.from;
+            const newValue = details.new_value || details.newValue || details.to;
+            
+            await connection.query(`
+              UPDATE audit_logs
+              SET previous_value = ?,
+                  new_value = ?
+              WHERE id = ?
+            `, [
+              previousValue ? String(previousValue) : null,
+              newValue ? String(newValue) : null,
+              record.id
+            ]);
+            
+            migratedCount++;
+          }
+        } catch (err) {
+          log(`Error migrating record ${record.id}: ${err.message}`, 'warning');
+        }
+      }
+      
+      log(`Successfully migrated ${migratedCount} records`, 'success');
+      return { success: true, message: 'Audit columns added and data migrated' };
+    } else {
+      log('previous_value column already exists, skipping migration', 'info');
+      return { success: true, message: 'Audit columns already exist' };
+    }
+  } catch (error) {
+    log(`Failed to add audit columns: ${error.message}`, 'error');
+    return { 
+      success: false, 
+      reason: `Failed to add audit columns: ${error.message}`,
+      error 
+    };
+  } finally {
+    if (connection) await connection.end();
+  }
 }
 
 // Export functions for use in other scripts

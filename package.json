@@ -14,7 +14,8 @@
     "restore-db": "node scripts/db-master.js restore --file=./backup.sql --database=ticketing",
     "reset-db": "node scripts/db-master.js reset --database=ticketing",
     "migrate": "node scripts/db-master.js migrate --database=ticketing",
-    "verify-db": "node scripts/db-master.js verify --database=ticketing"
+    "verify-db": "node scripts/db-master.js verify --database=ticketing",
+    "fix-audit": "node scripts/fix-audit-logs.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

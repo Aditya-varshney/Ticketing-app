@@ -3,9 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/mariadb/connect';
 import { TicketAudit, User } from '@/lib/mariadb/models';
+import sequelize from '@/lib/mariadb/connect';
 
 export async function GET(request, { params }) {
   try {
+    console.log('Audit trail requested for ticket:', params.id);
+    
     const session = await getServerSession(authOptions);
     
     // Check authentication
@@ -19,40 +22,70 @@ export async function GET(request, { params }) {
     }
 
     const ticketId = params.id;
+    console.log('Fetching audit trail for ticket ID:', ticketId);
     
     // Connect to database
     await connectToDatabase();
     
-    // Fetch audit trail with user information
-    const auditTrail = await TicketAudit.findAll({
-      where: { ticket_id: ticketId },
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'name', 'email']
-      }],
-      order: [['created_at', 'DESC']]
+    // Use direct SQL query to have more control
+    const query = `
+      SELECT 
+        a.id, a.action, a.entity_type, a.entity_id, 
+        a.details, a.created_at,
+        a.previous_value, a.new_value,
+        u.id as user_id, u.name as user_name, u.email as user_email
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.entity_id = ? AND a.entity_type = 'ticket'
+      ORDER BY a.created_at DESC
+    `;
+    
+    const [results] = await sequelize.query(query, {
+      replacements: [ticketId],
+      type: sequelize.QueryTypes.SELECT
     });
     
-    // Always return a valid response, even if no audit entries are found
+    const auditEntries = Array.isArray(results) ? results : [results];
+    console.log(`Found ${auditEntries?.length || 0} audit entries`);
+    
+    // Format the results from the query
     return NextResponse.json({
-      auditTrail: auditTrail && auditTrail.length ? auditTrail.map(entry => ({
-        id: entry.id,
-        action: entry.action,
-        previousValue: entry.previous_value,
-        newValue: entry.new_value,
-        details: entry.details,
-        createdAt: entry.created_at,
-        user: entry.user ? {
-          id: entry.user.id,
-          name: entry.user.name,
-          email: entry.user.email
-        } : { id: 'unknown', name: 'Unknown User', email: '' }
-      })) : []
+      auditTrail: auditEntries.filter(Boolean).map(row => {
+        // Parse details if it's stored as a string
+        let parsedDetails = null;
+        if (row.details) {
+          try {
+            parsedDetails = typeof row.details === 'string' ? 
+              JSON.parse(row.details) : row.details;
+          } catch (e) {
+            parsedDetails = row.details;
+          }
+        }
+
+        return {
+          id: row.id,
+          action: row.action,
+          // Try to get values from all possible locations
+          previousValue: row.previous_value || parsedDetails?.previous_value || parsedDetails?.previousValue,
+          newValue: row.new_value || parsedDetails?.new_value || parsedDetails?.newValue,
+          details: parsedDetails,
+          createdAt: row.created_at,
+          user: {
+            id: row.user_id,
+            name: row.user_name,
+            email: row.user_email
+          }
+        };
+      })
     });
     
   } catch (error) {
     console.error('Error fetching ticket audit trail:', error);
-    return NextResponse.json({ error: 'Failed to fetch audit trail' }, { status: 500 });
+    // Return a detailed error for troubleshooting
+    return NextResponse.json({ 
+      error: 'Failed to fetch audit trail', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }, { status: 500 });
   }
 } 

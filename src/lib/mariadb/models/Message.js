@@ -9,7 +9,7 @@ const Message = sequelize.define('Message', {
     defaultValue: () => uuidv4(),
     primaryKey: true
   },
-  sender: {
+  sender_id: {
     type: DataTypes.STRING(36),
     allowNull: false,
     references: {
@@ -17,9 +17,9 @@ const Message = sequelize.define('Message', {
       key: 'id'
     }
   },
-  receiver: {
+  receiver_id: {
     type: DataTypes.STRING(36),
-    allowNull: false,
+    allowNull: true,
     references: {
       model: User,
       key: 'id'
@@ -34,12 +34,8 @@ const Message = sequelize.define('Message', {
     defaultValue: false
   },
   ticket_id: {
-    type: DataTypes.STRING(20),
+    type: DataTypes.STRING(36),
     allowNull: true
-  },
-  has_attachment: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
   },
   attachment_url: {
     type: DataTypes.STRING(255),
@@ -52,6 +48,10 @@ const Message = sequelize.define('Message', {
   attachment_name: {
     type: DataTypes.STRING(255),
     allowNull: true
+  },
+  attachment_size: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   timestamps: true,
@@ -59,12 +59,10 @@ const Message = sequelize.define('Message', {
   updatedAt: 'updated_at',
   indexes: [
     {
-      fields: ['sender', 'receiver', 'created_at']
+      fields: ['sender_id', 'receiver_id', 'created_at']
     }
   ],
-  tableName: 'messages'  // Explicitly specify the lowercase table name
+  tableName: 'chat_messages'  // Match the table name from schema.sql
 });
-
-// Associations are defined in models/index.js
 
 export default Message;

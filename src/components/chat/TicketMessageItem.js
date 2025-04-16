@@ -8,36 +8,50 @@ export default function TicketMessageItem({ message, isCurrentUser }) {
   };
 
   const renderAttachment = () => {
-    if (!message.has_attachment || !message.attachment_url) return null;
+    // Check if there's an attachment using multiple possible property structures
+    const hasAttachment = Boolean(
+      message.attachment_url || 
+      message.attachmentUrl || 
+      (message.attachment && message.attachment.url) ||
+      message.has_attachment
+    );
+    
+    if (!hasAttachment) return null;
+    
+    // Use our new API endpoint to get the attachment directly
+    const apiAttachmentUrl = `/api/attachments/${message.id}`;
+    
+    // Get attachment metadata from various possible properties
+    const attachmentType = message.attachment_type || 
+                          message.attachmentType || 
+                          (message.attachment && message.attachment.type) || 
+                          'application/octet-stream';
+    
+    const attachmentName = message.attachment_name || 
+                           message.attachmentName || 
+                           (message.attachment && message.attachment.name) || 
+                           'file';
 
     // Log attachment details for debugging
-    console.log("Rendering attachment:", {
-      url: message.attachment_url,
-      type: message.attachment_type,
-      name: message.attachment_name,
-      hasAttachment: message.has_attachment,
+    console.log("Rendering attachment via API endpoint:", {
+      url: apiAttachmentUrl,
+      type: attachmentType,
+      name: attachmentName,
       messageId: message.id
     });
 
-    // Fix URL format - ensure it starts with / for proper loading
-    const attachmentUrl = message.attachment_url.startsWith('/')
-      ? message.attachment_url
-      : `/${message.attachment_url}`;
-
-    console.log("Using attachment URL:", attachmentUrl);
-
     // Handle different attachment types
-    if (message.attachment_type?.startsWith('image/')) {
+    if (attachmentType?.startsWith('image/')) {
       return (
         <div className="mt-2">
           <div className="relative">
             <img
-              src={attachmentUrl}
-              alt={message.attachment_name || 'Image attachment'}
+              src={apiAttachmentUrl}
+              alt={attachmentName || 'Image attachment'}
               className="max-w-xs rounded-lg border border-gray-200 dark:border-gray-700"
               onError={(e) => {
                 console.error("Image failed to load:", {
-                  url: attachmentUrl,
+                  url: apiAttachmentUrl,
                   error: e.type
                 });
                 e.target.src = '/file.svg';
@@ -47,40 +61,40 @@ export default function TicketMessageItem({ message, isCurrentUser }) {
             />
           </div>
           <a
-            href={attachmentUrl}
+            href={apiAttachmentUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-blue-500 hover:underline mt-1 block"
-            download={message.attachment_name}
+            download={attachmentName}
           >
-            {message.attachment_name || 'Download image'}
+            {attachmentName || 'Download image'}
           </a>
         </div>
       );
     }
     
     // Handle PDF files with preview
-    else if (message.attachment_type?.includes('pdf')) {
+    else if (attachmentType?.includes('pdf')) {
       return (
         <div className="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
           <div className="flex items-center mb-2">
             <svg className="w-6 h-6 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
-            <span className="font-medium">{message.attachment_name || 'PDF Document'}</span>
+            <span className="font-medium">{attachmentName || 'PDF Document'}</span>
           </div>
           <div className="flex space-x-2">
             <a
-              href={attachmentUrl}
+              href={apiAttachmentUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-blue-500 hover:underline flex items-center"
-              download={message.attachment_name}
+              download={attachmentName}
             >
               <span className="mr-1">📥</span> Download
             </a>
             <a
-              href={attachmentUrl}
+              href={apiAttachmentUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-blue-500 hover:underline flex items-center"
@@ -100,14 +114,14 @@ export default function TicketMessageItem({ message, isCurrentUser }) {
             <svg className="w-6 h-6 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="font-medium truncate max-w-[200px]">{message.attachment_name || 'Attachment'}</span>
+            <span className="font-medium truncate max-w-[200px]">{attachmentName || 'Attachment'}</span>
           </div>
           <a
-            href={attachmentUrl}
+            href={apiAttachmentUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-500 hover:underline mt-1 flex items-center"
-            download={message.attachment_name}
+            download={attachmentName}
           >
             <span className="mr-1">📥</span> Download file
           </a>

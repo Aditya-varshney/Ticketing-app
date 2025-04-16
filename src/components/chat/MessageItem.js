@@ -9,7 +9,7 @@ export default function MessageItem({ message, isOwn }) {
 
   // Function to render different attachment types
   const renderAttachment = () => {
-    if (!message.has_attachment && !message.attachment_url) return null;
+    if (!message.attachment_url) return null;
     
     const fileUrl = message.attachment_url;
     const fileName = message.attachment_name || 'Attachment';
@@ -19,12 +19,15 @@ export default function MessageItem({ message, isOwn }) {
     const isImage = fileType.startsWith('image/') || 
                    fileUrl?.endsWith('.jpg') || 
                    fileUrl?.endsWith('.jpeg') || 
-                   fileUrl?.endsWith('.png');
+                   fileUrl?.endsWith('.png') || 
+                   fileUrl?.endsWith('.gif');
     
     // Check if it's a document
     const isDocument = fileType.startsWith('application/') || 
                       fileUrl?.endsWith('.pdf') || 
-                      fileUrl?.endsWith('.docx');
+                      fileUrl?.endsWith('.docx') ||
+                      fileUrl?.endsWith('.xlsx') ||
+                      fileUrl?.endsWith('.txt');
     
     if (isImage) {
       return (

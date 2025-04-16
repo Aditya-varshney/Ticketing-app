@@ -89,8 +89,8 @@ export async function GET(request) {
     else if (userId) {
       whereClause = {
         [Op.or]: [
-          { sender: session.user.id, receiver: userId },
-          { sender: userId, receiver: session.user.id }
+          { sender_id: session.user.id, receiver_id: userId },
+          { sender_id: userId, receiver_id: session.user.id }
         ],
         ticket_id: null // Only get direct messages
       };
@@ -105,49 +105,21 @@ export async function GET(request) {
         { 
           model: User, 
           as: 'senderUser', 
-          attributes: ['id', 'name', 'email', 'role', 'avatar'],
-          required: false // Changed to false to not filter out messages
+          attributes: ['id', 'name', 'email', 'role', 'profile_image'],
+          required: false
         },
         { 
           model: User, 
           as: 'receiverUser', 
-          attributes: ['id', 'name', 'email', 'role', 'avatar'],
-          required: false // Changed to false to not filter out messages
+          attributes: ['id', 'name', 'email', 'role', 'profile_image'],
+          required: false
         }
       ],
-      order: [['created_at', 'ASC']], // Changed to ASC to show oldest first
+      order: [['created_at', 'ASC']]
     });
 
     console.log(`Found ${messages.length} messages`);
-
-    // Add additional user info if missing
-    const enhancedMessages = await Promise.all(messages.map(async (message) => {
-      const messageObj = message.toJSON();
-      
-      // If sender info is missing, fetch it
-      if (!messageObj.senderUser && message.sender) {
-        const senderUser = await User.findByPk(message.sender, {
-          attributes: ['id', 'name', 'email', 'role', 'avatar']
-        });
-        if (senderUser) {
-          messageObj.senderUser = senderUser.toJSON();
-        }
-      }
-      
-      // If receiver info is missing, fetch it
-      if (!messageObj.receiverUser && message.receiver) {
-        const receiverUser = await User.findByPk(message.receiver, {
-          attributes: ['id', 'name', 'email', 'role', 'avatar']
-        });
-        if (receiverUser) {
-          messageObj.receiverUser = receiverUser.toJSON();
-        }
-      }
-      
-      return messageObj;
-    }));
-
-    return NextResponse.json(enhancedMessages);
+    return NextResponse.json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);
     return NextResponse.json(
@@ -180,8 +152,15 @@ export async function POST(req) {
     // Check if basic required fields are present
     const { content, ticketId, receiverId } = data;
     
-    // Check for attachments with any possible property name
-    const hasAttachment = Boolean(data.attachmentUrl);
+    // Check for attachments with any possible property name structure
+    const hasAttachment = Boolean(data.attachmentUrl || (data.attachment && data.attachment.url));
+    
+    // Extract attachment data consistently
+    const attachmentUrl = data.attachmentUrl || (data.attachment && data.attachment.url);
+    const attachmentType = data.attachmentType || (data.attachment && data.attachment.type) || 'application/octet-stream';
+    const attachmentName = data.attachmentName || (data.attachment && data.attachment.name) || 'file';
+    const attachmentSize = data.attachmentSize || (data.attachment && data.attachment.size);
+    
     if (!ticketId && (!content || content.trim() === '') && !hasAttachment) {
       return Response.json({ error: "Content or attachment required" }, { status: 400 });
     }
@@ -193,7 +172,7 @@ export async function POST(req) {
 
     // Handle different message types
     let messageData = {
-      sender: userData.id,
+      sender_id: userData.id,
       content: content || "", // Empty string if no content
       read: false
     };
@@ -246,7 +225,7 @@ export async function POST(req) {
         if (!ticket.submitter) {
           return Response.json({ error: "Ticket submitter not found" }, { status: 400 });
         }
-        messageData.receiver = ticket.submitter.id;
+        messageData.receiver_id = ticket.submitter.id;
       } else {
         // For users, we need to get the assignment info
         try {
@@ -257,10 +236,10 @@ export async function POST(req) {
           
           // If the ticket is assigned, send to the assigned helpdesk staff
           if (assignment && assignment.helpdesk) {
-            messageData.receiver = assignment.helpdesk.id;
+            messageData.receiver_id = assignment.helpdesk.id;
           } else {
             // If unassigned, message will go to the system (null receiver)
-            messageData.receiver = null;
+            messageData.receiver_id = null;
           }
         } catch (err) {
           console.error("Error getting assignment:", err);
@@ -269,15 +248,15 @@ export async function POST(req) {
       }
     } else {
       // Direct message
-      messageData.receiver = receiverId;
+      messageData.receiver_id = receiverId;
     }
 
     // Add attachment data if present
     if (hasAttachment) {
-      messageData.has_attachment = true;
-      messageData.attachment_url = data.attachmentUrl;
-      messageData.attachment_type = data.attachmentType || 'application/octet-stream';
-      messageData.attachment_name = data.attachmentName || 'file';
+      messageData.attachment_url = attachmentUrl;
+      messageData.attachment_type = attachmentType;
+      messageData.attachment_name = attachmentName;
+      messageData.attachment_size = attachmentSize;
     }
 
     console.log("Creating message with data:", messageData);

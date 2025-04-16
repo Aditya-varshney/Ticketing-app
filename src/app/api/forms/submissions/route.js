@@ -175,7 +175,8 @@ export async function POST(request) {
         form_template_id: templateIdToUse,
         submitted_by: session.user.id,
         form_data: processedFormData,
-        priority: priority || 'pending'
+        status: 'open',  // Set explicit status
+        priority: priority || 'medium'  // Use valid priority value
       });
       
       console.log("Submission created successfully:", submission.id);
@@ -189,7 +190,10 @@ export async function POST(request) {
       
       // Fall back to direct SQL query
       const sequelize = FormSubmission.sequelize;
-      const ticketId = await generateTicketId(templateIdToUse);
+      const ticketId = await generateTicketId(
+        formTemplateId || 'custom-ticket-template',
+        session.user.name
+      );
       
       const [results] = await sequelize.query(`
         INSERT INTO form_submissions 
@@ -198,11 +202,11 @@ export async function POST(request) {
       `, {
         replacements: [
           ticketId,
-          templateIdToUse,
+          formTemplateId || 'custom-ticket-template',
           session.user.id,
           processedFormData,
           'open',
-          priority || 'pending'
+          priority || 'medium'  // Use valid priority value
         ]
       });
       

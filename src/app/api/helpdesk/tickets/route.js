@@ -43,7 +43,7 @@ export async function GET(request) {
       tickets = await FormSubmission.findAll({
         include: [
           { model: FormTemplate, as: 'template' },
-          { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'profile_image'] },
           { 
             model: TicketAssignment, 
             as: 'assignment',
@@ -53,14 +53,15 @@ export async function GET(request) {
         order: [['created_at', 'DESC']]
       });
     } else {
-      // Helpdesk users can see all tickets with assignment information
+      // Helpdesk users can see all tickets (not just assigned ones)
       tickets = await FormSubmission.findAll({
         include: [
           { model: FormTemplate, as: 'template' },
-          { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'submitter', attributes: ['id', 'name', 'email', 'profile_image'] },
           { 
             model: TicketAssignment, 
             as: 'assignment',
+            required: false,  // Makes it a LEFT JOIN - gets all tickets even without assignment
             include: [{ model: User, as: 'helpdesk', attributes: ['id', 'name', 'email'] }]
           }
         ],

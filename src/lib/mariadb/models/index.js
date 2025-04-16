@@ -8,10 +8,10 @@ import Notification from './Notification';
 import TicketAudit from './TicketAudit';
 
 // Define model relationships
-User.hasMany(Message, { foreignKey: 'sender', as: 'messagesSent' });
-User.hasMany(Message, { foreignKey: 'receiver', as: 'receivedMessages' });
-Message.belongsTo(User, { foreignKey: 'sender', as: 'senderUser' });
-Message.belongsTo(User, { foreignKey: 'receiver', as: 'receiverUser' });
+User.hasMany(Message, { foreignKey: 'sender_id', as: 'sentMessages' });
+User.hasMany(Message, { foreignKey: 'receiver_id', as: 'receivedMessages' });
+Message.belongsTo(User, { foreignKey: 'sender_id', as: 'senderUser' });
+Message.belongsTo(User, { foreignKey: 'receiver_id', as: 'receiverUser' });
 
 // Form Templates and Submissions
 User.hasMany(FormTemplate, { foreignKey: 'created_by', as: 'createdTemplates' });
